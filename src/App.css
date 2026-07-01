@@ -124,6 +124,11 @@
   font-size: 15px;
 }
 
+.card-choice.is-answer {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .card-answer {
   margin: 0;
   font-size: 15px;
