@@ -1,121 +1,73 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
 import './App.css'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [query, setQuery] = useState('')
+
+  const topCards = [1, 2, 3, 4]
+  const listRows = [1, 2, 3]
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
+    <div className="app-shell">
+      <header className="search-header">
+        <div className="header-titles">
+          <h1 className="app-title">G検定クイック検索ビューアー</h1>
+          <p className="app-subtitle">
+            2文字以上で即時検索。上位4件を同時比較。
           </p>
         </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+        <div className="search-box">
+          <input
+            type="text"
+            className="search-input"
+            placeholder="用語・問題文・解説を検索"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <div className="search-suggestion" aria-hidden="true">
+            候補はここに表示
+          </div>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+        <p className="status-line">CSV読み込み前</p>
+      </header>
+
+      <main className="main-content">
+        <section className="top-cards" aria-label="上位4件">
+          {topCards.map((n) => (
+            <article className="question-card" key={n}>
+              <div className="card-meta">
+                <span className="card-category">分野：―</span>
+                <span className="card-difficulty">難易度：―</span>
+              </div>
+              <p className="card-question">上位結果 {n}（問題文がここに入ります）</p>
+              <ul className="card-choices">
+                <li>A. ―</li>
+                <li>B. ―</li>
+                <li>C. ―</li>
+                <li>D. ―</li>
+              </ul>
+              <p className="card-answer">正解：―</p>
+              <p className="card-explanation">解説：ここに解説文が入ります。</p>
+            </article>
+          ))}
+        </section>
+
+        <section className="result-list" aria-label="5件目以降の結果">
+          <ul>
+            {listRows.map((n) => (
+              <li className="result-list-item" key={n}>
+                <span className="result-category">分野：―</span>
+                <span className="result-difficulty">難易度：―</span>
+                <span className="result-question">結果 {n + 4}（問題文の先頭）</span>
+                <span className="result-answer">正解：―</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </main>
+    </div>
   )
 }
 
