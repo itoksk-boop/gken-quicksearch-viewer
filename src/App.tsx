@@ -167,7 +167,9 @@ function App() {
                       難易度：{q.difficulty}
                     </span>
                     <span className="result-question">{q.question}</span>
-                    <span className="result-answer">正解：{q.answer}</span>
+                    <span className="result-answer">
+                      正解{q.answer}：{q.choices[q.answer]}
+                    </span>
                   </li>
                 ))}
               </ul>
