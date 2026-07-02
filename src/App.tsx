@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import Papa from 'papaparse'
 import './App.css'
 import type { AnswerKey, GQuestion } from './types/question'
 import { sampleQuestions } from './data/sampleQuestions'
+
+const CSV_URL = '/data/G検定_4択問題ファイル1_100問.csv'
 
 const ANSWER_KEYS: AnswerKey[] = ['A', 'B', 'C', 'D']
 
@@ -22,6 +25,33 @@ function matchesQuery(q: GQuestion, needle: string): boolean {
 
 function App() {
   const [query, setQuery] = useState('')
+  const [csvStatus, setCsvStatus] = useState('CSV未読み込み')
+
+  useEffect(() => {
+    setCsvStatus('CSV読み込み中')
+
+    fetch(CSV_URL)
+      .then((res) => res.text())
+      .then((csvText) => {
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (result) => {
+            if (result.errors.length > 0) {
+              setCsvStatus(`CSV読み込み失敗：${result.errors[0].message}`)
+              return
+            }
+            setCsvStatus(`CSV読み込み成功：${result.data.length}行`)
+          },
+          error: (err: Error) => {
+            setCsvStatus(`CSV読み込み失敗：${err.message}`)
+          },
+        })
+      })
+      .catch((err: Error) => {
+        setCsvStatus(`CSV読み込み失敗：${err.message}`)
+      })
+  }, [])
 
   const trimmedQuery = query.trim()
   const isSearchActive = trimmedQuery.length >= 2
@@ -67,6 +97,7 @@ function App() {
         </div>
 
         <p className="status-line">{statusText}</p>
+        <p className="csv-status">{csvStatus}</p>
       </header>
 
       <main className="main-content">
