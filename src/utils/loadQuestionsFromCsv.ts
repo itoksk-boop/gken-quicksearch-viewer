@@ -76,3 +76,25 @@ export async function loadQuestionsFromCsv(
 
   return parsed.data.map((row, index) => mapRow(row, sourceFile, index + 2))
 }
+
+export type CsvFileConfig = {
+  url: string
+  sourceFile: string
+}
+
+export async function loadAllQuestions(
+  files: CsvFileConfig[],
+): Promise<GQuestion[]> {
+  const results = await Promise.all(
+    files.map(async (file) => {
+      try {
+        return await loadQuestionsFromCsv(file.url, file.sourceFile)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        throw new Error(`${file.sourceFile}: ${message}`)
+      }
+    }),
+  )
+
+  return results.flat()
+}

@@ -1,10 +1,28 @@
 import { useEffect, useState } from 'react'
 import './App.css'
 import type { AnswerKey, GQuestion } from './types/question'
-import { loadQuestionsFromCsv } from './utils/loadQuestionsFromCsv'
+import {
+  loadAllQuestions,
+  type CsvFileConfig,
+} from './utils/loadQuestionsFromCsv'
 
-const CSV_SOURCE_FILE = 'G検定_4択問題ファイル1_100問.csv'
-const CSV_URL = `/data/${CSV_SOURCE_FILE}`
+const CSV_FILE_NAMES = [
+  'G検定_4択問題ファイル1_100問.csv',
+  'G検定_4択問題ファイル2_100問.csv',
+  'G検定_4択問題ファイル3_100問.csv',
+  'G検定_4択問題ファイル4_100問.csv',
+  'G検定_4択問題ファイル5_100問.csv',
+  'G検定_4択問題ファイル6_100問.csv',
+  'G検定_4択問題ファイル7_100問.csv',
+  'G検定_4択問題ファイル8_100問.csv',
+  'G検定_4択問題ファイル9_100問.csv',
+  'G検定_4択問題ファイル10_100問.csv',
+]
+
+const CSV_FILES: CsvFileConfig[] = CSV_FILE_NAMES.map((sourceFile) => ({
+  url: `/data/${sourceFile}`,
+  sourceFile,
+}))
 
 const ANSWER_KEYS: AnswerKey[] = ['A', 'B', 'C', 'D']
 
@@ -31,10 +49,12 @@ function App() {
   useEffect(() => {
     setCsvStatus('CSV読み込み中')
 
-    loadQuestionsFromCsv(CSV_URL, CSV_SOURCE_FILE)
+    loadAllQuestions(CSV_FILES)
       .then((loaded) => {
         setQuestions(loaded)
-        setCsvStatus(`CSV読み込み成功：${loaded.length}問`)
+        setCsvStatus(
+          `CSV読み込み成功：${CSV_FILES.length}ファイル / ${loaded.length}問`,
+        )
       })
       .catch((err: Error) => {
         setCsvStatus(`CSV読み込み失敗：${err.message}`)
