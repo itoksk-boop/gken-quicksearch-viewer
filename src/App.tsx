@@ -50,6 +50,42 @@ function getSearchTokens(rawQuery: string): string[] {
     .map((token) => token.toLowerCase())
 }
 
+const SCORE_WEIGHTS = {
+  question: 10,
+  answerChoiceText: 8,
+  explanation: 5,
+  anyChoice: 4,
+  category: 3,
+  difficulty: 1,
+  answer: 1,
+}
+
+function includesToken(text: string, token: string): boolean {
+  return text.toLowerCase().includes(token)
+}
+
+function scoreQuestionForToken(q: GQuestion, token: string): number {
+  let score = 0
+
+  if (includesToken(q.question, token)) score += SCORE_WEIGHTS.question
+  if (includesToken(q.choices[q.answer], token)) {
+    score += SCORE_WEIGHTS.answerChoiceText
+  }
+  if (includesToken(q.explanation, token)) score += SCORE_WEIGHTS.explanation
+  if (ANSWER_KEYS.some((key) => includesToken(q.choices[key], token))) {
+    score += SCORE_WEIGHTS.anyChoice
+  }
+  if (includesToken(q.category, token)) score += SCORE_WEIGHTS.category
+  if (includesToken(q.difficulty, token)) score += SCORE_WEIGHTS.difficulty
+  if (includesToken(q.answer, token)) score += SCORE_WEIGHTS.answer
+
+  return score
+}
+
+function scoreQuestion(q: GQuestion, tokens: string[]): number {
+  return tokens.reduce((total, token) => total + scoreQuestionForToken(q, token), 0)
+}
+
 const CARD_LONG_THRESHOLD = 350
 const CARD_VERY_LONG_THRESHOLD = 600
 
@@ -183,9 +219,13 @@ function App() {
   const filtered = isSearchActive
     ? searchTokens.length === 0
       ? []
-      : questions.filter((q) =>
-          searchTokens.every((token) => matchesQuery(q, token)),
-        )
+      : questions
+          .filter((q) =>
+            searchTokens.every((token) => matchesQuery(q, token)),
+          )
+          .map((q, index) => ({ q, index, score: scoreQuestion(q, searchTokens) }))
+          .sort((a, b) => b.score - a.score || a.index - b.index)
+          .map((entry) => entry.q)
     : questions
 
   const topResults = filtered.slice(0, TOP_RESULT_COUNT)
