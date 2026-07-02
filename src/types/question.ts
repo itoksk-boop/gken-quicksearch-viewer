@@ -11,3 +11,14 @@ export type GQuestion = {
   sourceFile: string
   usedStatus: string
 }
+
+export type ProblemSetSourceType = 'built-in' | 'imported'
+
+export type ProblemSet = {
+  id: string
+  name: string
+  sourceType: ProblemSetSourceType
+  enabled: boolean
+  questionCount: number
+  createdAt: string
+}

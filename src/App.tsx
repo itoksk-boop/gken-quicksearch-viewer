@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import './App.css'
-import type { AnswerKey, GQuestion } from './types/question'
+import type { AnswerKey, GQuestion, ProblemSet } from './types/question'
 import {
   loadAllQuestions,
   type CsvFileConfig,
@@ -203,6 +203,17 @@ function App() {
     return Array.from(new Set([...categories, ...KNOWN_TERMS]))
   }, [questions])
 
+  const builtInProblemSet: ProblemSet = {
+    id: 'built-in-gkentei-1000',
+    name: 'G検定 標準1000問',
+    sourceType: 'built-in',
+    enabled: true,
+    questionCount: questions.length,
+    createdAt: 'built-in',
+  }
+
+  const importedProblemSets: ProblemSet[] = []
+
   const trimmedQuery = query.trim()
   const isSearchActive = trimmedQuery.length >= 2
   const searchTokens = isSearchActive ? getSearchTokens(trimmedQuery) : []
@@ -349,28 +360,41 @@ function App() {
       <details className="data-management">
         <summary className="data-management-summary">データ管理</summary>
         <div className="data-management-body">
+          <p className="data-management-heading">問題セット</p>
           <dl className="data-management-list">
             <div className="data-management-row">
-              <dt>標準データ</dt>
-              <dd>G検定 {questions.length}問</dd>
+              <dt>名称</dt>
+              <dd>{builtInProblemSet.name}</dd>
+            </div>
+            <div className="data-management-row">
+              <dt>種別</dt>
+              <dd>
+                {builtInProblemSet.sourceType === 'built-in'
+                  ? '標準データ'
+                  : '追加データ'}
+              </dd>
             </div>
             <div className="data-management-row">
               <dt>状態</dt>
-              <dd>有効</dd>
+              <dd>{builtInProblemSet.enabled ? '有効' : '無効'}</dd>
+            </div>
+            <div className="data-management-row">
+              <dt>件数</dt>
+              <dd>{builtInProblemSet.questionCount}問</dd>
             </div>
             <div className="data-management-row">
               <dt>読み込み元</dt>
               <dd>標準CSV {CSV_FILES.length}ファイル</dd>
             </div>
-            <div className="data-management-row">
-              <dt>追加データ</dt>
-              <dd>まだありません</dd>
-            </div>
-            <div className="data-management-row">
-              <dt>インポート</dt>
-              <dd>準備中</dd>
-            </div>
           </dl>
+
+          <p className="data-management-heading">追加データ</p>
+          <p className="data-management-empty">
+            {importedProblemSets.length === 0
+              ? 'まだありません'
+              : `${importedProblemSets.length}件`}
+          </p>
+
           <div className="data-management-actions">
             <button type="button" className="data-management-button" disabled>
               CSVを追加
