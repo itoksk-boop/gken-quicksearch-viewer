@@ -41,6 +41,14 @@ function matchesQuery(q: GQuestion, needle: string): boolean {
   return haystacks.some((text) => text.toLowerCase().includes(needle))
 }
 
+function getSearchTokens(rawQuery: string): string[] {
+  return rawQuery
+    .trim()
+    .split(/\s+/)
+    .filter((token) => token.length >= 2)
+    .map((token) => token.toLowerCase())
+}
+
 function App() {
   const [query, setQuery] = useState('')
   const [questions, setQuestions] = useState<GQuestion[]>([])
@@ -63,9 +71,14 @@ function App() {
 
   const trimmedQuery = query.trim()
   const isSearchActive = trimmedQuery.length >= 2
+  const searchTokens = isSearchActive ? getSearchTokens(trimmedQuery) : []
 
   const filtered = isSearchActive
-    ? questions.filter((q) => matchesQuery(q, trimmedQuery.toLowerCase()))
+    ? searchTokens.length === 0
+      ? []
+      : questions.filter((q) =>
+          searchTokens.every((token) => matchesQuery(q, token)),
+        )
     : questions
 
   const topFour = filtered.slice(0, 4)
