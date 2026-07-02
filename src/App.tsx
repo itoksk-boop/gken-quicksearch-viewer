@@ -1,8 +1,16 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ReactNode,
+} from 'react'
 import './App.css'
 import type { AnswerKey, GQuestion, ProblemSet } from './types/question'
 import {
   loadAllQuestions,
+  parseQuestionsCsvText,
   type CsvFileConfig,
 } from './utils/loadQuestionsFromCsv'
 
@@ -177,10 +185,18 @@ function highlightText(text: string, tokens: string[]): ReactNode {
   )
 }
 
+type CsvValidationResult =
+  | { status: 'idle' }
+  | { status: 'success'; fileName: string; count: number }
+  | { status: 'error'; fileName: string; message: string }
+
 function App() {
   const [query, setQuery] = useState('')
   const [questions, setQuestions] = useState<GQuestion[]>([])
   const [csvStatus, setCsvStatus] = useState('CSV未読み込み')
+  const [csvValidation, setCsvValidation] = useState<CsvValidationResult>({
+    status: 'idle',
+  })
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -213,6 +229,25 @@ function App() {
   }
 
   const importedProblemSets: ProblemSet[] = []
+
+  const handleImportFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    try {
+      const csvText = await file.text()
+      const parsedQuestions = parseQuestionsCsvText(csvText, file.name)
+      setCsvValidation({
+        status: 'success',
+        fileName: file.name,
+        count: parsedQuestions.length,
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setCsvValidation({ status: 'error', fileName: file.name, message })
+    }
+  }
 
   const trimmedQuery = query.trim()
   const isSearchActive = trimmedQuery.length >= 2
@@ -395,10 +430,64 @@ function App() {
               : `${importedProblemSets.length}件`}
           </p>
 
+          <p className="data-management-heading">直近のCSV検証結果</p>
+          {csvValidation.status === 'idle' && (
+            <p className="data-management-empty">まだ検証していません</p>
+          )}
+          {csvValidation.status === 'success' && (
+            <dl className="data-management-list">
+              <div className="data-management-row">
+                <dt>ファイル名</dt>
+                <dd>{csvValidation.fileName}</dd>
+              </div>
+              <div className="data-management-row">
+                <dt>結果</dt>
+                <dd>検証OK</dd>
+              </div>
+              <div className="data-management-row">
+                <dt>読み込み可能件数</dt>
+                <dd>{csvValidation.count}問</dd>
+              </div>
+              <div className="data-management-row">
+                <dt>保存状態</dt>
+                <dd>未保存</dd>
+              </div>
+              <div className="data-management-row">
+                <dt>検索反映</dt>
+                <dd>未反映</dd>
+              </div>
+            </dl>
+          )}
+          {csvValidation.status === 'error' && (
+            <dl className="data-management-list">
+              <div className="data-management-row">
+                <dt>ファイル名</dt>
+                <dd>{csvValidation.fileName}</dd>
+              </div>
+              <div className="data-management-row">
+                <dt>結果</dt>
+                <dd>検証エラー</dd>
+              </div>
+              <div className="data-management-row">
+                <dt>内容</dt>
+                <dd>{csvValidation.message}</dd>
+              </div>
+            </dl>
+          )}
+          <p className="data-management-note">
+            ※ CSVの検証のみ行います。まだ保存されず、検索対象にも反映されません。
+          </p>
+
           <div className="data-management-actions">
-            <button type="button" className="data-management-button" disabled>
+            <label className="data-management-button data-management-file-label">
               CSVを追加
-            </button>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="data-management-file-input"
+                onChange={handleImportFileChange}
+              />
+            </label>
             <button type="button" className="data-management-button" disabled>
               データセット管理
             </button>

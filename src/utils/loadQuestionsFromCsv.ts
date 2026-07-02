@@ -57,13 +57,10 @@ function mapRow(row: CsvRow, sourceFile: string, rowNumber: number): GQuestion {
   }
 }
 
-export async function loadQuestionsFromCsv(
-  url: string,
+export function parseQuestionsCsvText(
+  csvText: string,
   sourceFile: string,
-): Promise<GQuestion[]> {
-  const res = await fetch(url)
-  const csvText = await res.text()
-
+): GQuestion[] {
   const parsed = Papa.parse<CsvRow>(csvText, {
     header: true,
     skipEmptyLines: true,
@@ -74,7 +71,28 @@ export async function loadQuestionsFromCsv(
     throw new Error(parsed.errors[0].message)
   }
 
-  return parsed.data.map((row, index) => mapRow(row, sourceFile, index + 2))
+  const questions = parsed.data.map((row, index) =>
+    mapRow(row, sourceFile, index + 2),
+  )
+
+  const seenIds = new Set<string>()
+  for (const question of questions) {
+    if (seenIds.has(question.id)) {
+      throw new Error(`id「${question.id}」が重複しています`)
+    }
+    seenIds.add(question.id)
+  }
+
+  return questions
+}
+
+export async function loadQuestionsFromCsv(
+  url: string,
+  sourceFile: string,
+): Promise<GQuestion[]> {
+  const res = await fetch(url)
+  const csvText = await res.text()
+  return parseQuestionsCsvText(csvText, sourceFile)
 }
 
 export type CsvFileConfig = {
