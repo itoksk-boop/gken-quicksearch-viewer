@@ -51,6 +51,8 @@ function matchesQuery(q: GQuestion, needle: string): boolean {
     q.choices.D,
     q.answer,
     q.explanation,
+    q.metadata?.searchKeywords ?? '',
+    q.metadata?.trapPoint ?? '',
   ]
   return haystacks.some((text) => text.toLowerCase().includes(needle))
 }
@@ -69,6 +71,8 @@ const SCORE_WEIGHTS = {
   explanation: 5,
   anyChoice: 4,
   category: 3,
+  searchKeywords: 3,
+  trapPoint: 2,
   difficulty: 1,
   answer: 1,
 }
@@ -91,6 +95,12 @@ function scoreQuestionForToken(q: GQuestion, token: string): number {
   if (includesToken(q.category, token)) score += SCORE_WEIGHTS.category
   if (includesToken(q.difficulty, token)) score += SCORE_WEIGHTS.difficulty
   if (includesToken(q.answer, token)) score += SCORE_WEIGHTS.answer
+  if (includesToken(q.metadata?.searchKeywords ?? '', token)) {
+    score += SCORE_WEIGHTS.searchKeywords
+  }
+  if (includesToken(q.metadata?.trapPoint ?? '', token)) {
+    score += SCORE_WEIGHTS.trapPoint
+  }
 
   return score
 }
@@ -114,6 +124,40 @@ function getCardLengthClass(q: GQuestion): string {
   if (totalLength >= CARD_VERY_LONG_THRESHOLD) return 'card--very-long'
   if (totalLength >= CARD_LONG_THRESHOLD) return 'card--long'
   return ''
+}
+
+function formatRegisteredAt(set: ProblemSet): string {
+  if (set.sourceType === 'built-in') return '初期収録'
+
+  const date = new Date(set.createdAt)
+  if (Number.isNaN(date.getTime())) return set.createdAt
+
+  return new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date)
+}
+
+function splitSearchKeywords(value: string): string[] {
+  const terms = value
+    .split(/[,、;；\s]+/)
+    .map((term) => term.trim())
+    .filter(Boolean)
+  return Array.from(new Set(terms))
+}
+
+function hasDetailContent(q: GQuestion): boolean {
+  const metadata = q.metadata
+  if (!metadata) return false
+  const hasWrongReasons = ANSWER_KEYS.some(
+    (key) => metadata.wrongReasons?.[key],
+  )
+  return Boolean(metadata.trapPoint || metadata.storyHint || hasWrongReasons)
 }
 
 function escapeRegExp(value: string): string {
@@ -198,7 +242,7 @@ type CsvValidationResult =
 function App() {
   const [query, setQuery] = useState('')
   const [questions, setQuestions] = useState<GQuestion[]>([])
-  const [csvStatus, setCsvStatus] = useState('CSV未読み込み')
+  const [csvStatus, setCsvStatus] = useState('標準データ未読み込み')
   const [csvValidation, setCsvValidation] = useState<CsvValidationResult>({
     status: 'idle',
   })
@@ -214,20 +258,25 @@ function App() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [openDetailKeys, setOpenDetailKeys] = useState<Set<string>>(new Set())
+  const [isDataPanelOpen, setIsDataPanelOpen] = useState(false)
+  const [selectedForMergeIds, setSelectedForMergeIds] = useState<Set<string>>(
+    new Set(),
+  )
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    setCsvStatus('CSV読み込み中')
+    setCsvStatus('標準データ読み込み中')
 
     loadAllQuestions(CSV_FILES)
       .then((loaded) => {
         setQuestions(loaded)
         setCsvStatus(
-          `CSV読み込み成功：${CSV_FILES.length}ファイル / ${loaded.length}問`,
+          `標準データ読み込み成功：${CSV_FILES.length}ファイル / ${loaded.length}問`,
         )
       })
       .catch((err: Error) => {
-        setCsvStatus(`CSV読み込み失敗：${err.message}`)
+        setCsvStatus(`標準データ読み込み失敗：${err.message}`)
       })
   }, [])
 
@@ -262,7 +311,12 @@ function App() {
 
   const vocabulary = useMemo(() => {
     const categories = allSearchQuestions.map((q) => q.category)
-    return Array.from(new Set([...categories, ...KNOWN_TERMS]))
+    const keywordTerms = allSearchQuestions.flatMap((q) =>
+      q.metadata?.searchKeywords
+        ? splitSearchKeywords(q.metadata.searchKeywords)
+        : [],
+    )
+    return Array.from(new Set([...categories, ...keywordTerms, ...KNOWN_TERMS]))
   }, [questions, importedProblemSets, importedQuestionsBySetId])
 
   const builtInProblemSet: ProblemSet = {
@@ -274,12 +328,14 @@ function App() {
     createdAt: 'built-in',
   }
 
-  const searchPoolSummary =
-    enabledImportedQuestions.length > 0 || importedProblemSets.length > 0
-      ? `検索対象：標準${questions.length}問 + 追加${enabledImportedQuestions.length}問 = ${allSearchQuestions.length}問`
-      : `検索対象：標準${questions.length}問`
+  const allDisplayedSets: ProblemSet[] = [
+    builtInProblemSet,
+    ...importedProblemSets,
+  ]
 
-  const hasUnsavedImport = importedProblemSets.some(
+  const searchPoolSummary = `検索対象：標準${questions.length}問＋追加${enabledImportedQuestions.length}問＝${allSearchQuestions.length}問`
+
+  const latestUnsavedSet = importedProblemSets.find(
     (set) => !savedImportedIds.has(set.id),
   )
 
@@ -324,20 +380,6 @@ function App() {
     }
   }
 
-  const handleClearImported = () => {
-    setImportedProblemSets((prev) =>
-      prev.filter((set) => savedImportedIds.has(set.id)),
-    )
-    setImportedQuestionsBySetId((prev) => {
-      const kept: Record<string, GQuestion[]> = {}
-      for (const id of Object.keys(prev)) {
-        if (savedImportedIds.has(id)) kept[id] = prev[id]
-      }
-      return kept
-    })
-    setCsvValidation({ status: 'idle' })
-  }
-
   const handleSaveImported = async (set: ProblemSet) => {
     setSaveError(null)
     try {
@@ -368,34 +410,108 @@ function App() {
     }
   }
 
-  const handleDeleteImported = async (set: ProblemSet) => {
+  const handleDeleteSelected = async () => {
+    const selectedSets = importedProblemSets.filter((set) =>
+      selectedForMergeIds.has(set.id),
+    )
+    if (selectedSets.length === 0) return
+
     const confirmed = window.confirm(
-      'この追加データを削除します。保存済みの場合、このブラウザ内の保存データも削除されます。よろしいですか？',
+      `選択した${selectedSets.length}件のデータを削除します。保存済みの場合、このブラウザ内の保存データも削除されます。よろしいですか？`,
     )
     if (!confirmed) return
 
-    if (savedImportedIds.has(set.id)) {
-      try {
-        await deleteProblemSet(set.id)
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        setDeleteError(message)
-        return
+    setDeleteError(null)
+    const succeededIds: string[] = []
+    let lastErrorMessage: string | null = null
+
+    for (const set of selectedSets) {
+      if (savedImportedIds.has(set.id)) {
+        try {
+          await deleteProblemSet(set.id)
+        } catch (err) {
+          lastErrorMessage = err instanceof Error ? err.message : String(err)
+          continue
+        }
       }
+      succeededIds.push(set.id)
     }
 
-    setImportedProblemSets((prev) => prev.filter((s) => s.id !== set.id))
+    if (lastErrorMessage) setDeleteError(lastErrorMessage)
+
+    const succeededIdSet = new Set(succeededIds)
+    setImportedProblemSets((prev) =>
+      prev.filter((s) => !succeededIdSet.has(s.id)),
+    )
     setImportedQuestionsBySetId((prev) => {
       const next = { ...prev }
-      delete next[set.id]
+      for (const id of succeededIds) delete next[id]
       return next
     })
     setSavedImportedIds((prev) => {
       const next = new Set(prev)
-      next.delete(set.id)
+      for (const id of succeededIds) next.delete(id)
       return next
     })
-    setDeleteError(null)
+    setSelectedForMergeIds((prev) => {
+      const next = new Set(prev)
+      for (const id of succeededIds) next.delete(id)
+      return next
+    })
+  }
+
+  const handleToggleSelectForMerge = (setId: string) => {
+    setSelectedForMergeIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(setId)) {
+        next.delete(setId)
+      } else {
+        next.add(setId)
+      }
+      return next
+    })
+  }
+
+  const handleMergeSelected = async () => {
+    const selectedSets = importedProblemSets.filter((set) =>
+      selectedForMergeIds.has(set.id),
+    )
+    if (selectedSets.length < 2) return
+
+    const confirmed = window.confirm(
+      `選択した${selectedSets.length}件のデータを統合します。よろしいですか？`,
+    )
+    if (!confirmed) return
+
+    const defaultName = selectedSets.map((set) => set.name).join('+')
+    const name = window.prompt('統合後のデータ名を入力してください', defaultName)
+    if (!name || !name.trim()) return
+
+    const mergedQuestions = selectedSets.flatMap(
+      (set) => importedQuestionsBySetId[set.id] ?? [],
+    )
+    const mergedSet: ProblemSet = {
+      id: `imported-merged-${Date.now()}`,
+      name: name.trim(),
+      sourceType: 'imported',
+      enabled: true,
+      questionCount: mergedQuestions.length,
+      createdAt: new Date().toISOString(),
+    }
+
+    try {
+      await saveProblemSet(mergedSet, mergedQuestions)
+      setImportedProblemSets((prev) => [...prev, mergedSet])
+      setImportedQuestionsBySetId((prev) => ({
+        ...prev,
+        [mergedSet.id]: mergedQuestions,
+      }))
+      setSavedImportedIds((prev) => new Set(prev).add(mergedSet.id))
+      setSelectedForMergeIds(new Set())
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setSaveError(message)
+    }
   }
 
   const trimmedQuery = query.trim()
@@ -409,6 +525,18 @@ function App() {
   const handleSuggestionClick = (suggestion: string) => {
     setQuery((prev) => applySuggestion(prev, suggestion))
     searchInputRef.current?.focus()
+  }
+
+  const handleToggleDetail = (cardKey: string) => {
+    setOpenDetailKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(cardKey)) {
+        next.delete(cardKey)
+      } else {
+        next.add(cardKey)
+      }
+      return next
+    })
   }
 
   const filtered = isSearchActive
@@ -426,51 +554,262 @@ function App() {
   const topResults = filtered.slice(0, TOP_RESULT_COUNT)
   const rest = filtered.slice(TOP_RESULT_COUNT)
 
-  const statusText = !isSearchActive
-    ? '検索対象データ表示中 / 2文字以上で検索'
-    : filtered.length === 0
-      ? '該当なし'
-      : `検索結果 ${filtered.length}件`
+  const headerResultCount = (
+    isSearchActive ? filtered.length : allSearchQuestions.length
+  ).toLocaleString('ja-JP')
+
+  const showCsvStatus =
+    csvStatus.includes('読み込み中') || csvStatus.includes('失敗')
 
   return (
     <div className="app-shell">
       <header className="search-header">
-        <div className="header-titles">
-          <h1 className="app-title">G検定クイック検索ビューアー</h1>
-          <p className="app-subtitle">
-            2文字以上で即時検索。上位6件を同時比較。
-          </p>
+        <div className="header-row">
+          <div className="header-info-block">
+            <h1 className="app-title">G検定クイック検索ビューアー</h1>
+            <div className="header-meta">
+              <button
+                type="button"
+                className="settings-toggle"
+                aria-label={
+                  isDataPanelOpen ? 'データ管理を閉じる' : 'データ管理を開く'
+                }
+                onClick={() => setIsDataPanelOpen((prev) => !prev)}
+              >
+                ⚙️
+              </button>
+              <span className="header-result-count">
+                検索結果
+                <span className="header-result-count-value">
+                  {headerResultCount}
+                </span>
+                件
+              </span>
+            </div>
+          </div>
+
+          <div className="header-search-block">
+            <div className="search-box">
+              <input
+                type="text"
+                className="search-input"
+                placeholder="用語・問題文・解説を検索"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                ref={searchInputRef}
+              />
+              {suggestions.length > 0 && (
+                <div className="suggestion-chips" role="list">
+                  {suggestions.map((term) => (
+                    <button
+                      type="button"
+                      className="suggestion-chip"
+                      key={term}
+                      role="listitem"
+                      onClick={() => handleSuggestionClick(term)}
+                    >
+                      {term}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="search-box">
-          <input
-            type="text"
-            className="search-input"
-            placeholder="用語・問題文・解説を検索"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            ref={searchInputRef}
-          />
-          {suggestions.length > 0 && (
-            <div className="suggestion-chips" role="list">
-              {suggestions.map((term) => (
+        {showCsvStatus && <p className="csv-status">{csvStatus}</p>}
+      </header>
+
+      {isDataPanelOpen && (
+        <section className="data-management-panel">
+          <div className="data-management-panel-header">
+            <div className="data-management-panel-heading-group">
+              <p className="data-management-heading-main">データ管理</p>
+              <p className="data-management-search-pool">
+                {searchPoolSummary}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="data-management-button"
+              onClick={() => setIsDataPanelOpen(false)}
+            >
+              閉じる
+            </button>
+          </div>
+          <div className="data-management-body">
+            {restoreError && (
+              <p className="data-management-error">
+                復元エラー：{restoreError}
+              </p>
+            )}
+
+            <div className="data-management-load-row">
+              <span className="data-management-load-label">データ読み込み</span>
+              <label className="data-management-button data-management-add-button data-management-file-label">
+                新たなデータを追加
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="data-management-file-input"
+                  onChange={handleImportFileChange}
+                />
+              </label>
+              <span className="data-management-save-note">
+                保存先：このブラウザ内　※別端末とは同期されません。
+              </span>
+            </div>
+
+            {csvValidation.status === 'success' && (
+              <p className="data-management-csv-result">
+                検証OK：{csvValidation.fileName}（{csvValidation.count}問）
+                {latestUnsavedSet && (
+                  <button
+                    type="button"
+                    className="data-management-button"
+                    onClick={() => handleSaveImported(latestUnsavedSet)}
+                  >
+                    保存
+                  </button>
+                )}
+              </p>
+            )}
+            {csvValidation.status === 'error' && (
+              <p className="data-management-csv-result data-management-error">
+                検証エラー：{csvValidation.fileName}（{csvValidation.message}）
+              </p>
+            )}
+
+            <div className="data-management-selection-bar">
+              <span className="data-management-selection-label">
+                選択したデータ
+                <span className="data-management-selection-count-value">
+                  {selectedForMergeIds.size}
+                </span>
+                件選択中
+              </span>
+              <div className="data-management-selection-actions">
                 <button
                   type="button"
-                  className="suggestion-chip"
-                  key={term}
-                  role="listitem"
-                  onClick={() => handleSuggestionClick(term)}
+                  className="data-management-button"
+                  disabled={selectedForMergeIds.size < 2}
+                  onClick={handleMergeSelected}
                 >
-                  {term}
+                  統合
                 </button>
-              ))}
+                <button
+                  type="button"
+                  className="data-management-button data-management-button-danger"
+                  disabled={selectedForMergeIds.size < 1}
+                  onClick={handleDeleteSelected}
+                >
+                  削除
+                </button>
+              </div>
             </div>
-          )}
-        </div>
 
-        <p className="status-line">{statusText}</p>
-        <p className="csv-status">{csvStatus}</p>
-      </header>
+            {saveError && (
+              <p className="data-management-error">保存エラー：{saveError}</p>
+            )}
+            {deleteError && (
+              <p className="data-management-error">
+                削除エラー：{deleteError}
+              </p>
+            )}
+
+            <div className="data-table-wrapper">
+              <table className="data-table">
+                <tbody>
+                  <tr>
+                    <th>名称</th>
+                    {allDisplayedSets.map((set) => (
+                      <td key={set.id}>
+                        {set.sourceType === 'imported' && (
+                          <input
+                            type="checkbox"
+                            className="data-table-checkbox"
+                            checked={selectedForMergeIds.has(set.id)}
+                            onChange={() =>
+                              handleToggleSelectForMerge(set.id)
+                            }
+                            aria-label={`${set.name}を選択`}
+                          />
+                        )}
+                        {set.name}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th>登録日時</th>
+                    {allDisplayedSets.map((set) => (
+                      <td key={set.id}>{formatRegisteredAt(set)}</td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th>件数</th>
+                    {allDisplayedSets.map((set) => (
+                      <td key={set.id}>{set.questionCount}問</td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th>読み込み元</th>
+                    {allDisplayedSets.map((set) => (
+                      <td key={set.id}>
+                        {set.sourceType === 'built-in' ? '内蔵CSV' : 'CSV追加'}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th>状態</th>
+                    {allDisplayedSets.map((set) => (
+                      <td key={set.id}>
+                        {set.sourceType === 'built-in' ? (
+                          <span className="status-badge">有効</span>
+                        ) : (
+                          <div className="status-toggle" role="group">
+                            <button
+                              type="button"
+                              className={
+                                set.enabled
+                                  ? 'status-toggle-button is-active'
+                                  : 'status-toggle-button'
+                              }
+                              onClick={() =>
+                                !set.enabled && handleToggleEnabled(set)
+                              }
+                            >
+                              有効
+                            </button>
+                            <button
+                              type="button"
+                              className={
+                                !set.enabled
+                                  ? 'status-toggle-button is-active'
+                                  : 'status-toggle-button'
+                              }
+                              onClick={() =>
+                                set.enabled && handleToggleEnabled(set)
+                              }
+                            >
+                              無効
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {importedProblemSets.length === 0 && (
+              <p className="data-management-empty">
+                追加データはまだありません
+              </p>
+            )}
+          </div>
+        </section>
+      )}
 
       <main className="main-content">
         {isSearchActive && filtered.length === 0 ? (
@@ -478,42 +817,108 @@ function App() {
         ) : (
           <>
             <section className="top-cards" aria-label="上位6件">
-              {topResults.map((q) => (
-                <article
-                  className={`question-card ${getCardLengthClass(q)}`.trim()}
-                  key={`${q.sourceFile}-${q.id}`}
-                >
-                  <div className="card-meta">
-                    <span className="card-category">
-                      分野：{highlightText(q.category, searchTokens)}
-                    </span>
-                    <span className="card-difficulty">
-                      難易度：{highlightText(q.difficulty, searchTokens)}
-                    </span>
-                  </div>
-                  <p className="card-question">
-                    {highlightText(q.question, searchTokens)}
-                  </p>
-                  <ul className="card-choices">
-                    {ANSWER_KEYS.map((key) => (
-                      <li
-                        key={key}
-                        className={
-                          key === q.answer
-                            ? 'card-choice is-answer'
-                            : 'card-choice'
-                        }
-                      >
-                        {key}. {highlightText(q.choices[key], searchTokens)}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="card-answer">正解：{q.answer}</p>
-                  <p className="card-explanation">
-                    解説：{highlightText(q.explanation, searchTokens)}
-                  </p>
-                </article>
-              ))}
+              {topResults.map((q) => {
+                const cardKey = `${q.sourceFile}-${q.id}`
+                const isDetailOpen = openDetailKeys.has(cardKey)
+                const wrongReasons = q.metadata?.wrongReasons
+
+                return (
+                  <article
+                    className={`question-card ${getCardLengthClass(q)}`.trim()}
+                    key={cardKey}
+                  >
+                    <div className="card-meta">
+                      <span className="card-category">
+                        分野：{highlightText(q.category, searchTokens)}
+                      </span>
+                      <span className="card-difficulty">
+                        難易度：{highlightText(q.difficulty, searchTokens)}
+                      </span>
+                    </div>
+                    <p className="card-question">
+                      {highlightText(q.question, searchTokens)}
+                    </p>
+                    <ul className="card-choices">
+                      {ANSWER_KEYS.map((key) => (
+                        <li
+                          key={key}
+                          className={
+                            key === q.answer
+                              ? 'card-choice is-answer'
+                              : 'card-choice'
+                          }
+                        >
+                          {key}. {highlightText(q.choices[key], searchTokens)}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="card-answer">正解：{q.answer}</p>
+                    <p className="card-explanation">
+                      解説：{highlightText(q.explanation, searchTokens)}
+                    </p>
+                    <button
+                      type="button"
+                      className="card-detail-toggle"
+                      onClick={() => handleToggleDetail(cardKey)}
+                    >
+                      {isDetailOpen ? '詳細を閉じる' : '詳細'}
+                    </button>
+                    {isDetailOpen && (
+                      <div className="card-detail">
+                        {hasDetailContent(q) ? (
+                          <>
+                            {q.metadata?.trapPoint && (
+                              <p className="card-detail-row">
+                                <span className="card-detail-label">
+                                  ひっかけポイント：
+                                </span>
+                                {highlightText(
+                                  q.metadata.trapPoint,
+                                  searchTokens,
+                                )}
+                              </p>
+                            )}
+                            {wrongReasons &&
+                              ANSWER_KEYS.some((key) => wrongReasons[key]) && (
+                                <div className="card-detail-row">
+                                  <span className="card-detail-label">
+                                    誤答理由：
+                                  </span>
+                                  <ul className="card-detail-wrong-list">
+                                    {ANSWER_KEYS.filter(
+                                      (key) => wrongReasons[key],
+                                    ).map((key) => (
+                                      <li key={key}>
+                                        {key}：
+                                        {highlightText(
+                                          wrongReasons[key] ?? '',
+                                          searchTokens,
+                                        )}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            {q.metadata?.storyHint && (
+                              <p className="card-detail-row">
+                                <span className="card-detail-label">
+                                  記憶ヒント：
+                                </span>
+                                {highlightText(
+                                  q.metadata.storyHint,
+                                  searchTokens,
+                                )}
+                              </p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="card-detail-empty">追加詳細なし</p>
+                        )}
+                      </div>
+                    )}
+                  </article>
+                )
+              })}
             </section>
 
             <section className="result-list" aria-label="7件目以降の結果">
@@ -543,202 +948,6 @@ function App() {
           </>
         )}
       </main>
-
-      <details className="data-management">
-        <summary className="data-management-summary">データ管理</summary>
-        <div className="data-management-body">
-          <p className="data-management-search-pool">{searchPoolSummary}</p>
-
-          <p className="data-management-heading">問題セット</p>
-          <dl className="data-management-list">
-            <div className="data-management-row">
-              <dt>名称</dt>
-              <dd>{builtInProblemSet.name}</dd>
-            </div>
-            <div className="data-management-row">
-              <dt>種別</dt>
-              <dd>
-                {builtInProblemSet.sourceType === 'built-in'
-                  ? '標準データ'
-                  : '追加データ'}
-              </dd>
-            </div>
-            <div className="data-management-row">
-              <dt>状態</dt>
-              <dd>{builtInProblemSet.enabled ? '有効' : '無効'}</dd>
-            </div>
-            <div className="data-management-row">
-              <dt>件数</dt>
-              <dd>{builtInProblemSet.questionCount}問</dd>
-            </div>
-            <div className="data-management-row">
-              <dt>読み込み元</dt>
-              <dd>標準CSV {CSV_FILES.length}ファイル</dd>
-            </div>
-          </dl>
-
-          <p className="data-management-heading">追加データ</p>
-          {restoreError && (
-            <p className="data-management-error">復元エラー：{restoreError}</p>
-          )}
-          {importedProblemSets.length === 0 ? (
-            <p className="data-management-empty">まだありません</p>
-          ) : (
-            importedProblemSets.map((set) => {
-              const isSaved = savedImportedIds.has(set.id)
-              return (
-                <div className="data-management-set" key={set.id}>
-                  <dl className="data-management-list">
-                    <div className="data-management-row">
-                      <dt>名称</dt>
-                      <dd>{set.name}</dd>
-                    </div>
-                    <div className="data-management-row">
-                      <dt>種別</dt>
-                      <dd>{isSaved ? '保存済み追加' : '一時追加'}</dd>
-                    </div>
-                    <div className="data-management-row">
-                      <dt>状態</dt>
-                      <dd>{set.enabled ? '有効' : '無効'}</dd>
-                    </div>
-                    <div className="data-management-row">
-                      <dt>件数</dt>
-                      <dd>{set.questionCount}問</dd>
-                    </div>
-                    <div className="data-management-row">
-                      <dt>保存状態</dt>
-                      <dd>{isSaved ? '保存済み' : '未保存'}</dd>
-                    </div>
-                    {isSaved && (
-                      <div className="data-management-row">
-                        <dt>保存先</dt>
-                        <dd>このブラウザ内</dd>
-                      </div>
-                    )}
-                    <div className="data-management-row">
-                      <dt>検索反映</dt>
-                      <dd>{set.enabled ? '反映中' : '未反映'}</dd>
-                    </div>
-                  </dl>
-                  <div className="data-management-actions">
-                    <button
-                      type="button"
-                      className="data-management-button"
-                      onClick={() => handleToggleEnabled(set)}
-                    >
-                      {set.enabled ? '検索対象から外す' : '検索対象に戻す'}
-                    </button>
-                    {!isSaved && (
-                      <button
-                        type="button"
-                        className="data-management-button"
-                        onClick={() => handleSaveImported(set)}
-                      >
-                        このCSVを保存
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="data-management-button data-management-button-danger"
-                      onClick={() => handleDeleteImported(set)}
-                    >
-                      削除
-                    </button>
-                  </div>
-                </div>
-              )
-            })
-          )}
-          {saveError && (
-            <p className="data-management-error">保存エラー：{saveError}</p>
-          )}
-          {deleteError && (
-            <p className="data-management-error">削除エラー：{deleteError}</p>
-          )}
-          {hasUnsavedImport && (
-            <button
-              type="button"
-              className="data-management-button"
-              onClick={handleClearImported}
-            >
-              一時追加を解除
-            </button>
-          )}
-          {importedProblemSets.some((set) => savedImportedIds.has(set.id)) && (
-            <p className="data-management-note">
-              保存先：このブラウザ内
-              <br />
-              ※ 別端末とは同期されません。
-            </p>
-          )}
-
-          <p className="data-management-heading">直近のCSV検証結果</p>
-          {csvValidation.status === 'idle' && (
-            <p className="data-management-empty">まだ検証していません</p>
-          )}
-          {csvValidation.status === 'success' && (
-            <dl className="data-management-list">
-              <div className="data-management-row">
-                <dt>ファイル名</dt>
-                <dd>{csvValidation.fileName}</dd>
-              </div>
-              <div className="data-management-row">
-                <dt>結果</dt>
-                <dd>検証OK</dd>
-              </div>
-              <div className="data-management-row">
-                <dt>読み込み可能件数</dt>
-                <dd>{csvValidation.count}問</dd>
-              </div>
-              <div className="data-management-row">
-                <dt>保存状態</dt>
-                <dd>未保存</dd>
-              </div>
-              <div className="data-management-row">
-                <dt>検索反映</dt>
-                <dd>反映中</dd>
-              </div>
-            </dl>
-          )}
-          {csvValidation.status === 'error' && (
-            <dl className="data-management-list">
-              <div className="data-management-row">
-                <dt>ファイル名</dt>
-                <dd>{csvValidation.fileName}</dd>
-              </div>
-              <div className="data-management-row">
-                <dt>結果</dt>
-                <dd>検証エラー</dd>
-              </div>
-              <div className="data-management-row">
-                <dt>内容</dt>
-                <dd>{csvValidation.message}</dd>
-              </div>
-            </dl>
-          )}
-          {hasUnsavedImport && (
-            <p className="data-management-note">
-              ※
-              まだ保存していないCSVは、ページを再読み込みすると消えます。「このCSVを保存」を押すとこのブラウザ内に保存されます。
-            </p>
-          )}
-
-          <div className="data-management-actions">
-            <label className="data-management-button data-management-file-label">
-              CSVを追加
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                className="data-management-file-input"
-                onChange={handleImportFileChange}
-              />
-            </label>
-            <button type="button" className="data-management-button" disabled>
-              データセット管理
-            </button>
-          </div>
-        </div>
-      </details>
     </div>
   )
 }
