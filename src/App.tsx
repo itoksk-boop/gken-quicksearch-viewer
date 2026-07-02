@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import './App.css'
 import type { AnswerKey, GQuestion } from './types/question'
 import {
@@ -25,6 +25,7 @@ const CSV_FILES: CsvFileConfig[] = CSV_FILE_NAMES.map((sourceFile) => ({
 }))
 
 const ANSWER_KEYS: AnswerKey[] = ['A', 'B', 'C', 'D']
+const TOP_RESULT_COUNT = 6
 
 function matchesQuery(q: GQuestion, needle: string): boolean {
   const haystacks = [
@@ -47,6 +48,48 @@ function getSearchTokens(rawQuery: string): string[] {
     .split(/\s+/)
     .filter((token) => token.length >= 2)
     .map((token) => token.toLowerCase())
+}
+
+const CARD_LONG_THRESHOLD = 350
+const CARD_VERY_LONG_THRESHOLD = 600
+
+function getCardLengthClass(q: GQuestion): string {
+  const totalLength =
+    q.question.length +
+    q.choices.A.length +
+    q.choices.B.length +
+    q.choices.C.length +
+    q.choices.D.length +
+    q.explanation.length
+
+  if (totalLength >= CARD_VERY_LONG_THRESHOLD) return 'card--very-long'
+  if (totalLength >= CARD_LONG_THRESHOLD) return 'card--long'
+  return ''
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function highlightText(text: string, tokens: string[]): ReactNode {
+  if (tokens.length === 0) return text
+
+  const pattern = tokens
+    .map(escapeRegExp)
+    .sort((a, b) => b.length - a.length)
+    .join('|')
+  const regex = new RegExp(`(${pattern})`, 'gi')
+  const parts = text.split(regex)
+
+  return parts.map((part, index) =>
+    index % 2 === 1 ? (
+      <mark className="search-highlight" key={index}>
+        {part}
+      </mark>
+    ) : (
+      part
+    ),
+  )
 }
 
 function App() {
@@ -81,8 +124,8 @@ function App() {
         )
     : questions
 
-  const topFour = filtered.slice(0, 4)
-  const rest = filtered.slice(4)
+  const topResults = filtered.slice(0, TOP_RESULT_COUNT)
+  const rest = filtered.slice(TOP_RESULT_COUNT)
 
   const statusText = !isSearchActive
     ? '検索対象データ表示中 / 2文字以上で検索'
@@ -100,7 +143,7 @@ function App() {
         <div className="header-titles">
           <h1 className="app-title">G検定クイック検索ビューアー</h1>
           <p className="app-subtitle">
-            2文字以上で即時検索。上位4件を同時比較。
+            2文字以上で即時検索。上位6件を同時比較。
           </p>
         </div>
 
@@ -126,16 +169,23 @@ function App() {
           <p className="no-result">該当なし</p>
         ) : (
           <>
-            <section className="top-cards" aria-label="上位4件">
-              {topFour.map((q) => (
-                <article className="question-card" key={q.id}>
+            <section className="top-cards" aria-label="上位6件">
+              {topResults.map((q) => (
+                <article
+                  className={`question-card ${getCardLengthClass(q)}`.trim()}
+                  key={q.id}
+                >
                   <div className="card-meta">
-                    <span className="card-category">分野：{q.category}</span>
+                    <span className="card-category">
+                      分野：{highlightText(q.category, searchTokens)}
+                    </span>
                     <span className="card-difficulty">
-                      難易度：{q.difficulty}
+                      難易度：{highlightText(q.difficulty, searchTokens)}
                     </span>
                   </div>
-                  <p className="card-question">{q.question}</p>
+                  <p className="card-question">
+                    {highlightText(q.question, searchTokens)}
+                  </p>
                   <ul className="card-choices">
                     {ANSWER_KEYS.map((key) => (
                       <li
@@ -146,29 +196,34 @@ function App() {
                             : 'card-choice'
                         }
                       >
-                        {key}. {q.choices[key]}
+                        {key}. {highlightText(q.choices[key], searchTokens)}
                       </li>
                     ))}
                   </ul>
                   <p className="card-answer">正解：{q.answer}</p>
-                  <p className="card-explanation">解説：{q.explanation}</p>
+                  <p className="card-explanation">
+                    解説：{highlightText(q.explanation, searchTokens)}
+                  </p>
                 </article>
               ))}
             </section>
 
-            <section className="result-list" aria-label="5件目以降の結果">
+            <section className="result-list" aria-label="7件目以降の結果">
               <ul>
                 {rest.map((q) => (
                   <li className="result-list-item" key={q.id}>
                     <span className="result-category">
-                      分野：{q.category}
+                      分野：{highlightText(q.category, searchTokens)}
                     </span>
                     <span className="result-difficulty">
-                      難易度：{q.difficulty}
+                      難易度：{highlightText(q.difficulty, searchTokens)}
                     </span>
-                    <span className="result-question">{q.question}</span>
+                    <span className="result-question">
+                      {highlightText(q.question, searchTokens)}
+                    </span>
                     <span className="result-answer">
-                      正解{q.answer}：{q.choices[q.answer]}
+                      正解{q.answer}：
+                      {highlightText(q.choices[q.answer], searchTokens)}
                     </span>
                   </li>
                 ))}

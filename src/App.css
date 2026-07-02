@@ -93,12 +93,20 @@
 
 .top-cards {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: repeat(2, 1fr);
-  gap: 12px;
+  gap: 10px;
 }
 
-/* 4件同時比較を維持するため、2列表示はできる限り粘る。1列化は最終退避。 */
+/* iPad縦向きなど、横幅が狭くなる区間は3列を保てないため2列×3行に切り替える */
+@media (max-width: 900px) {
+  .top-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(3, 1fr);
+  }
+}
+
+/* 6件同時比較を維持するため、2列表示はできる限り粘る。1列化は最終退避。 */
 @media (max-width: 640px) {
   .top-cards {
     grid-template-columns: 1fr;
@@ -149,13 +157,13 @@
 .card-meta {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--text-h);
 }
 
 .card-question {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-h);
   margin: 0;
@@ -168,9 +176,9 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3px 10px;
-  font-size: 13px;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  font-size: 12px;
 }
 
 .card-choices li {
@@ -188,16 +196,73 @@
 
 .card-answer {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--accent);
 }
 
 .card-explanation {
   margin: 0;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text);
   line-height: 1.4;
+}
+
+/* 長文問題でもカードが縦に伸びすぎないよう、文字サイズ・行間・余白を詰める */
+.question-card.card--long {
+  padding: 10px;
+  gap: 4px;
+}
+
+.question-card.card--long .card-question {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.question-card.card--long .card-choices {
+  font-size: 11px;
+  gap: 1px;
+}
+
+.question-card.card--long .card-explanation {
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.question-card.card--very-long {
+  padding: 8px;
+  gap: 3px;
+}
+
+.question-card.card--very-long .card-question {
+  font-size: 12px;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.question-card.card--very-long .card-choices {
+  font-size: 10px;
+  gap: 1px;
+}
+
+.question-card.card--very-long .card-explanation {
+  font-size: 10px;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.search-highlight {
+  background: rgba(255, 230, 120, 0.9);
+  border-radius: 4px;
+  padding: 0 2px;
+  font-weight: 700;
+  color: #1a1a1a;
 }
 
 .result-list ul {
