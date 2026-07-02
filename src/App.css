@@ -366,6 +366,17 @@
   color: var(--text);
 }
 
+.data-management-set {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.data-management-error {
+  margin: 0;
+  color: #c0392b;
+}
+
 .data-management-list {
   margin: 0;
   display: flex;

@@ -13,6 +13,7 @@ import {
   parseQuestionsCsvText,
   type CsvFileConfig,
 } from './utils/loadQuestionsFromCsv'
+import { saveProblemSet } from './utils/problemSetStorage'
 
 const CSV_FILE_NAMES = [
   'G検定_4択問題ファイル1_100問.csv',
@@ -201,6 +202,10 @@ function App() {
   const [importedProblemSets, setImportedProblemSets] = useState<
     ProblemSet[]
   >([])
+  const [savedImportedIds, setSavedImportedIds] = useState<Set<string>>(
+    new Set(),
+  )
+  const [saveError, setSaveError] = useState<string | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -263,6 +268,8 @@ function App() {
           createdAt: new Date().toISOString(),
         },
       ])
+      setSavedImportedIds(new Set())
+      setSaveError(null)
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       setCsvValidation({ status: 'error', fileName: file.name, message })
@@ -273,6 +280,19 @@ function App() {
     setImportedQuestions([])
     setImportedProblemSets([])
     setCsvValidation({ status: 'idle' })
+    setSavedImportedIds(new Set())
+    setSaveError(null)
+  }
+
+  const handleSaveImported = async (set: ProblemSet) => {
+    setSaveError(null)
+    try {
+      await saveProblemSet(set, importedQuestions)
+      setSavedImportedIds((prev) => new Set(prev).add(set.id))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setSaveError(message)
+    }
   }
 
   const trimmedQuery = query.trim()
@@ -458,34 +478,57 @@ function App() {
           {importedProblemSets.length === 0 ? (
             <p className="data-management-empty">まだありません</p>
           ) : (
-            importedProblemSets.map((set) => (
-              <dl className="data-management-list" key={set.id}>
-                <div className="data-management-row">
-                  <dt>名称</dt>
-                  <dd>{set.name}</dd>
+            importedProblemSets.map((set) => {
+              const isSaved = savedImportedIds.has(set.id)
+              return (
+                <div className="data-management-set" key={set.id}>
+                  <dl className="data-management-list">
+                    <div className="data-management-row">
+                      <dt>名称</dt>
+                      <dd>{set.name}</dd>
+                    </div>
+                    <div className="data-management-row">
+                      <dt>種別</dt>
+                      <dd>一時追加</dd>
+                    </div>
+                    <div className="data-management-row">
+                      <dt>状態</dt>
+                      <dd>{set.enabled ? '有効' : '無効'}</dd>
+                    </div>
+                    <div className="data-management-row">
+                      <dt>件数</dt>
+                      <dd>{set.questionCount}問</dd>
+                    </div>
+                    <div className="data-management-row">
+                      <dt>保存状態</dt>
+                      <dd>{isSaved ? '保存済み' : '未保存'}</dd>
+                    </div>
+                    {isSaved && (
+                      <div className="data-management-row">
+                        <dt>保存先</dt>
+                        <dd>このブラウザ内</dd>
+                      </div>
+                    )}
+                    <div className="data-management-row">
+                      <dt>検索反映</dt>
+                      <dd>反映中</dd>
+                    </div>
+                  </dl>
+                  {!isSaved && (
+                    <button
+                      type="button"
+                      className="data-management-button"
+                      onClick={() => handleSaveImported(set)}
+                    >
+                      このCSVを保存
+                    </button>
+                  )}
                 </div>
-                <div className="data-management-row">
-                  <dt>種別</dt>
-                  <dd>一時追加</dd>
-                </div>
-                <div className="data-management-row">
-                  <dt>状態</dt>
-                  <dd>{set.enabled ? '有効' : '無効'}</dd>
-                </div>
-                <div className="data-management-row">
-                  <dt>件数</dt>
-                  <dd>{set.questionCount}問</dd>
-                </div>
-                <div className="data-management-row">
-                  <dt>保存状態</dt>
-                  <dd>未保存</dd>
-                </div>
-                <div className="data-management-row">
-                  <dt>検索反映</dt>
-                  <dd>反映中</dd>
-                </div>
-              </dl>
-            ))
+              )
+            })
+          )}
+          {saveError && (
+            <p className="data-management-error">保存エラー：{saveError}</p>
           )}
           {importedProblemSets.length > 0 && (
             <button
@@ -495,6 +538,13 @@ function App() {
             >
               一時追加を解除
             </button>
+          )}
+          {importedProblemSets.some((set) => savedImportedIds.has(set.id)) && (
+            <p className="data-management-note">
+              保存先：このブラウザ内
+              <br />
+              ※ 別端末とは同期されません。次フェーズで、再読み込み後の復元に対応します。
+            </p>
           )}
 
           <p className="data-management-heading">直近のCSV検証結果</p>

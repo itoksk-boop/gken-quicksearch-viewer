@@ -22,3 +22,8 @@ export type ProblemSet = {
   questionCount: number
   createdAt: string
 }
+
+export type StoredProblemSet = {
+  problemSet: ProblemSet
+  questions: GQuestion[]
+}
