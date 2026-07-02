@@ -14,6 +14,7 @@ import {
   type CsvFileConfig,
 } from './utils/loadQuestionsFromCsv'
 import {
+  deleteProblemSet,
   getAllStoredProblemSets,
   saveProblemSet,
 } from './utils/problemSetStorage'
@@ -212,6 +213,7 @@ function App() {
   )
   const [saveError, setSaveError] = useState<string | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -364,6 +366,36 @@ function App() {
         setSaveError(message)
       }
     }
+  }
+
+  const handleDeleteImported = async (set: ProblemSet) => {
+    const confirmed = window.confirm(
+      'この追加データを削除します。保存済みの場合、このブラウザ内の保存データも削除されます。よろしいですか？',
+    )
+    if (!confirmed) return
+
+    if (savedImportedIds.has(set.id)) {
+      try {
+        await deleteProblemSet(set.id)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        setDeleteError(message)
+        return
+      }
+    }
+
+    setImportedProblemSets((prev) => prev.filter((s) => s.id !== set.id))
+    setImportedQuestionsBySetId((prev) => {
+      const next = { ...prev }
+      delete next[set.id]
+      return next
+    })
+    setSavedImportedIds((prev) => {
+      const next = new Set(prev)
+      next.delete(set.id)
+      return next
+    })
+    setDeleteError(null)
   }
 
   const trimmedQuery = query.trim()
@@ -605,6 +637,13 @@ function App() {
                         このCSVを保存
                       </button>
                     )}
+                    <button
+                      type="button"
+                      className="data-management-button data-management-button-danger"
+                      onClick={() => handleDeleteImported(set)}
+                    >
+                      削除
+                    </button>
                   </div>
                 </div>
               )
@@ -612,6 +651,9 @@ function App() {
           )}
           {saveError && (
             <p className="data-management-error">保存エラー：{saveError}</p>
+          )}
+          {deleteError && (
+            <p className="data-management-error">削除エラー：{deleteError}</p>
           )}
           {hasUnsavedImport && (
             <button

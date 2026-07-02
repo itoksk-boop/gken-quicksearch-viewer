@@ -45,6 +45,25 @@ export async function saveProblemSet(
   }
 }
 
+export async function deleteProblemSet(problemSetId: string): Promise<void> {
+  const db = await openDatabase()
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite')
+      const store = tx.objectStore(STORE_NAME)
+
+      store.delete(problemSetId)
+
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error ?? new Error('削除に失敗しました'))
+      tx.onabort = () => reject(tx.error ?? new Error('削除が中断されました'))
+    })
+  } finally {
+    db.close()
+  }
+}
+
 export async function getAllStoredProblemSets(): Promise<StoredProblemSet[]> {
   const db = await openDatabase()
 
