@@ -13,7 +13,10 @@ import {
   parseQuestionsCsvText,
   type CsvFileConfig,
 } from './utils/loadQuestionsFromCsv'
-import { saveProblemSet } from './utils/problemSetStorage'
+import {
+  getAllStoredProblemSets,
+  saveProblemSet,
+} from './utils/problemSetStorage'
 
 const CSV_FILE_NAMES = [
   'G検定_4択問題ファイル1_100問.csv',
@@ -206,6 +209,7 @@ function App() {
     new Set(),
   )
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -220,6 +224,22 @@ function App() {
       })
       .catch((err: Error) => {
         setCsvStatus(`CSV読み込み失敗：${err.message}`)
+      })
+  }, [])
+
+  useEffect(() => {
+    getAllStoredProblemSets()
+      .then((stored) => {
+        if (stored.length === 0) return
+
+        setImportedQuestions(stored.flatMap((entry) => entry.questions))
+        setImportedProblemSets(stored.map((entry) => entry.problemSet))
+        setSavedImportedIds(
+          new Set(stored.map((entry) => entry.problemSet.id)),
+        )
+      })
+      .catch((err: Error) => {
+        setRestoreError(err.message)
       })
   }, [])
 
@@ -475,6 +495,9 @@ function App() {
           </dl>
 
           <p className="data-management-heading">追加データ</p>
+          {restoreError && (
+            <p className="data-management-error">復元エラー：{restoreError}</p>
+          )}
           {importedProblemSets.length === 0 ? (
             <p className="data-management-empty">まだありません</p>
           ) : (
@@ -489,7 +512,7 @@ function App() {
                     </div>
                     <div className="data-management-row">
                       <dt>種別</dt>
-                      <dd>一時追加</dd>
+                      <dd>{isSaved ? '保存済み追加' : '一時追加'}</dd>
                     </div>
                     <div className="data-management-row">
                       <dt>状態</dt>

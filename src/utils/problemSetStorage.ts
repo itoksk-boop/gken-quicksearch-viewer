@@ -44,3 +44,24 @@ export async function saveProblemSet(
     db.close()
   }
 }
+
+export async function getAllStoredProblemSets(): Promise<StoredProblemSet[]> {
+  const db = await openDatabase()
+
+  try {
+    return await new Promise<StoredProblemSet[]>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly')
+      const store = tx.objectStore(STORE_NAME)
+      const request = store.getAll()
+
+      request.onsuccess = () => {
+        resolve(request.result as StoredProblemSet[])
+      }
+      request.onerror = () => {
+        reject(request.error ?? new Error('保存済みデータの読み出しに失敗しました'))
+      }
+    })
+  } finally {
+    db.close()
+  }
+}
