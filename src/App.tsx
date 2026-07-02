@@ -345,6 +345,42 @@ function App() {
           </>
         )}
       </main>
+
+      <details className="data-management">
+        <summary className="data-management-summary">データ管理</summary>
+        <div className="data-management-body">
+          <dl className="data-management-list">
+            <div className="data-management-row">
+              <dt>標準データ</dt>
+              <dd>G検定 {questions.length}問</dd>
+            </div>
+            <div className="data-management-row">
+              <dt>状態</dt>
+              <dd>有効</dd>
+            </div>
+            <div className="data-management-row">
+              <dt>読み込み元</dt>
+              <dd>標準CSV {CSV_FILES.length}ファイル</dd>
+            </div>
+            <div className="data-management-row">
+              <dt>追加データ</dt>
+              <dd>まだありません</dd>
+            </div>
+            <div className="data-management-row">
+              <dt>インポート</dt>
+              <dd>準備中</dd>
+            </div>
+          </dl>
+          <div className="data-management-actions">
+            <button type="button" className="data-management-button" disabled>
+              CSVを追加
+            </button>
+            <button type="button" className="data-management-button" disabled>
+              データセット管理
+            </button>
+          </div>
+        </div>
+      </details>
     </div>
   )
 }
