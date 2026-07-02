@@ -201,10 +201,12 @@ function App() {
   const [csvValidation, setCsvValidation] = useState<CsvValidationResult>({
     status: 'idle',
   })
-  const [importedQuestions, setImportedQuestions] = useState<GQuestion[]>([])
   const [importedProblemSets, setImportedProblemSets] = useState<
     ProblemSet[]
   >([])
+  const [importedQuestionsBySetId, setImportedQuestionsBySetId] = useState<
+    Record<string, GQuestion[]>
+  >({})
   const [savedImportedIds, setSavedImportedIds] = useState<Set<string>>(
     new Set(),
   )
@@ -232,23 +234,34 @@ function App() {
       .then((stored) => {
         if (stored.length === 0) return
 
-        setImportedQuestions(stored.flatMap((entry) => entry.questions))
-        setImportedProblemSets(stored.map((entry) => entry.problemSet))
-        setSavedImportedIds(
-          new Set(stored.map((entry) => entry.problemSet.id)),
+        const restoredSets = stored.map((entry) => ({
+          ...entry.problemSet,
+          enabled: entry.problemSet.enabled ?? true,
+        }))
+
+        setImportedProblemSets(restoredSets)
+        setImportedQuestionsBySetId(
+          Object.fromEntries(
+            stored.map((entry) => [entry.problemSet.id, entry.questions]),
+          ),
         )
+        setSavedImportedIds(new Set(restoredSets.map((set) => set.id)))
       })
       .catch((err: Error) => {
         setRestoreError(err.message)
       })
   }, [])
 
-  const allSearchQuestions = [...questions, ...importedQuestions]
+  const enabledImportedQuestions = importedProblemSets
+    .filter((set) => set.enabled)
+    .flatMap((set) => importedQuestionsBySetId[set.id] ?? [])
+
+  const allSearchQuestions = [...questions, ...enabledImportedQuestions]
 
   const vocabulary = useMemo(() => {
     const categories = allSearchQuestions.map((q) => q.category)
     return Array.from(new Set([...categories, ...KNOWN_TERMS]))
-  }, [questions, importedQuestions])
+  }, [questions, importedProblemSets, importedQuestionsBySetId])
 
   const builtInProblemSet: ProblemSet = {
     id: 'built-in-gkentei-1000',
@@ -260,9 +273,13 @@ function App() {
   }
 
   const searchPoolSummary =
-    importedQuestions.length > 0
-      ? `検索対象：標準${questions.length}問 + 追加${importedQuestions.length}問 = ${allSearchQuestions.length}問`
+    enabledImportedQuestions.length > 0 || importedProblemSets.length > 0
+      ? `検索対象：標準${questions.length}問 + 追加${enabledImportedQuestions.length}問 = ${allSearchQuestions.length}問`
       : `検索対象：標準${questions.length}問`
+
+  const hasUnsavedImport = importedProblemSets.some(
+    (set) => !savedImportedIds.has(set.id),
+  )
 
   const handleImportFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -272,23 +289,32 @@ function App() {
     try {
       const csvText = await file.text()
       const parsedQuestions = parseQuestionsCsvText(csvText, file.name)
+      const newSet: ProblemSet = {
+        id: `imported-${file.name}-${Date.now()}`,
+        name: file.name,
+        sourceType: 'imported',
+        enabled: true,
+        questionCount: parsedQuestions.length,
+        createdAt: new Date().toISOString(),
+      }
+
       setCsvValidation({
         status: 'success',
         fileName: file.name,
         count: parsedQuestions.length,
       })
-      setImportedQuestions(parsedQuestions)
-      setImportedProblemSets([
-        {
-          id: `imported-${file.name}-${Date.now()}`,
-          name: file.name,
-          sourceType: 'imported',
-          enabled: true,
-          questionCount: parsedQuestions.length,
-          createdAt: new Date().toISOString(),
-        },
+      setImportedProblemSets((prev) => [
+        ...prev.filter((set) => savedImportedIds.has(set.id)),
+        newSet,
       ])
-      setSavedImportedIds(new Set())
+      setImportedQuestionsBySetId((prev) => {
+        const kept: Record<string, GQuestion[]> = {}
+        for (const id of Object.keys(prev)) {
+          if (savedImportedIds.has(id)) kept[id] = prev[id]
+        }
+        kept[newSet.id] = parsedQuestions
+        return kept
+      })
       setSaveError(null)
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -297,21 +323,46 @@ function App() {
   }
 
   const handleClearImported = () => {
-    setImportedQuestions([])
-    setImportedProblemSets([])
+    setImportedProblemSets((prev) =>
+      prev.filter((set) => savedImportedIds.has(set.id)),
+    )
+    setImportedQuestionsBySetId((prev) => {
+      const kept: Record<string, GQuestion[]> = {}
+      for (const id of Object.keys(prev)) {
+        if (savedImportedIds.has(id)) kept[id] = prev[id]
+      }
+      return kept
+    })
     setCsvValidation({ status: 'idle' })
-    setSavedImportedIds(new Set())
-    setSaveError(null)
   }
 
   const handleSaveImported = async (set: ProblemSet) => {
     setSaveError(null)
     try {
-      await saveProblemSet(set, importedQuestions)
+      const setQuestions = importedQuestionsBySetId[set.id] ?? []
+      await saveProblemSet(set, setQuestions)
       setSavedImportedIds((prev) => new Set(prev).add(set.id))
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       setSaveError(message)
+    }
+  }
+
+  const handleToggleEnabled = async (set: ProblemSet) => {
+    const updatedSet: ProblemSet = { ...set, enabled: !set.enabled }
+
+    setImportedProblemSets((prev) =>
+      prev.map((s) => (s.id === set.id ? updatedSet : s)),
+    )
+
+    if (savedImportedIds.has(set.id)) {
+      try {
+        const setQuestions = importedQuestionsBySetId[set.id] ?? []
+        await saveProblemSet(updatedSet, setQuestions)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        setSaveError(message)
+      }
     }
   }
 
@@ -534,18 +585,27 @@ function App() {
                     )}
                     <div className="data-management-row">
                       <dt>検索反映</dt>
-                      <dd>反映中</dd>
+                      <dd>{set.enabled ? '反映中' : '未反映'}</dd>
                     </div>
                   </dl>
-                  {!isSaved && (
+                  <div className="data-management-actions">
                     <button
                       type="button"
                       className="data-management-button"
-                      onClick={() => handleSaveImported(set)}
+                      onClick={() => handleToggleEnabled(set)}
                     >
-                      このCSVを保存
+                      {set.enabled ? '検索対象から外す' : '検索対象に戻す'}
                     </button>
-                  )}
+                    {!isSaved && (
+                      <button
+                        type="button"
+                        className="data-management-button"
+                        onClick={() => handleSaveImported(set)}
+                      >
+                        このCSVを保存
+                      </button>
+                    )}
+                  </div>
                 </div>
               )
             })
@@ -553,7 +613,7 @@ function App() {
           {saveError && (
             <p className="data-management-error">保存エラー：{saveError}</p>
           )}
-          {importedProblemSets.length > 0 && (
+          {hasUnsavedImport && (
             <button
               type="button"
               className="data-management-button"
@@ -566,7 +626,7 @@ function App() {
             <p className="data-management-note">
               保存先：このブラウザ内
               <br />
-              ※ 別端末とは同期されません。次フェーズで、再読み込み後の復元に対応します。
+              ※ 別端末とは同期されません。
             </p>
           )}
 
@@ -614,10 +674,12 @@ function App() {
               </div>
             </dl>
           )}
-          <p className="data-management-note">
-            ※
-            追加したCSVは保存されません。ページを再読み込みすると一時追加は消えます。
-          </p>
+          {hasUnsavedImport && (
+            <p className="data-management-note">
+              ※
+              まだ保存していないCSVは、ページを再読み込みすると消えます。「このCSVを保存」を押すとこのブラウザ内に保存されます。
+            </p>
+          )}
 
           <div className="data-management-actions">
             <label className="data-management-button data-management-file-label">
