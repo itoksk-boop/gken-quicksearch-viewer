@@ -197,6 +197,10 @@ function App() {
   const [csvValidation, setCsvValidation] = useState<CsvValidationResult>({
     status: 'idle',
   })
+  const [importedQuestions, setImportedQuestions] = useState<GQuestion[]>([])
+  const [importedProblemSets, setImportedProblemSets] = useState<
+    ProblemSet[]
+  >([])
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -214,10 +218,12 @@ function App() {
       })
   }, [])
 
+  const allSearchQuestions = [...questions, ...importedQuestions]
+
   const vocabulary = useMemo(() => {
-    const categories = questions.map((q) => q.category)
+    const categories = allSearchQuestions.map((q) => q.category)
     return Array.from(new Set([...categories, ...KNOWN_TERMS]))
-  }, [questions])
+  }, [questions, importedQuestions])
 
   const builtInProblemSet: ProblemSet = {
     id: 'built-in-gkentei-1000',
@@ -228,7 +234,10 @@ function App() {
     createdAt: 'built-in',
   }
 
-  const importedProblemSets: ProblemSet[] = []
+  const searchPoolSummary =
+    importedQuestions.length > 0
+      ? `検索対象：標準${questions.length}問 + 追加${importedQuestions.length}問 = ${allSearchQuestions.length}問`
+      : `検索対象：標準${questions.length}問`
 
   const handleImportFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -243,10 +252,27 @@ function App() {
         fileName: file.name,
         count: parsedQuestions.length,
       })
+      setImportedQuestions(parsedQuestions)
+      setImportedProblemSets([
+        {
+          id: `imported-${file.name}-${Date.now()}`,
+          name: file.name,
+          sourceType: 'imported',
+          enabled: true,
+          questionCount: parsedQuestions.length,
+          createdAt: new Date().toISOString(),
+        },
+      ])
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       setCsvValidation({ status: 'error', fileName: file.name, message })
     }
+  }
+
+  const handleClearImported = () => {
+    setImportedQuestions([])
+    setImportedProblemSets([])
+    setCsvValidation({ status: 'idle' })
   }
 
   const trimmedQuery = query.trim()
@@ -265,14 +291,14 @@ function App() {
   const filtered = isSearchActive
     ? searchTokens.length === 0
       ? []
-      : questions
+      : allSearchQuestions
           .filter((q) =>
             searchTokens.every((token) => matchesQuery(q, token)),
           )
           .map((q, index) => ({ q, index, score: scoreQuestion(q, searchTokens) }))
           .sort((a, b) => b.score - a.score || a.index - b.index)
           .map((entry) => entry.q)
-    : questions
+    : allSearchQuestions
 
   const topResults = filtered.slice(0, TOP_RESULT_COUNT)
   const rest = filtered.slice(TOP_RESULT_COUNT)
@@ -332,7 +358,7 @@ function App() {
               {topResults.map((q) => (
                 <article
                   className={`question-card ${getCardLengthClass(q)}`.trim()}
-                  key={q.id}
+                  key={`${q.sourceFile}-${q.id}`}
                 >
                   <div className="card-meta">
                     <span className="card-category">
@@ -370,7 +396,10 @@ function App() {
             <section className="result-list" aria-label="7件目以降の結果">
               <ul>
                 {rest.map((q) => (
-                  <li className="result-list-item" key={q.id}>
+                  <li
+                    className="result-list-item"
+                    key={`${q.sourceFile}-${q.id}`}
+                  >
                     <span className="result-category">
                       分野：{highlightText(q.category, searchTokens)}
                     </span>
@@ -395,6 +424,8 @@ function App() {
       <details className="data-management">
         <summary className="data-management-summary">データ管理</summary>
         <div className="data-management-body">
+          <p className="data-management-search-pool">{searchPoolSummary}</p>
+
           <p className="data-management-heading">問題セット</p>
           <dl className="data-management-list">
             <div className="data-management-row">
@@ -424,11 +455,47 @@ function App() {
           </dl>
 
           <p className="data-management-heading">追加データ</p>
-          <p className="data-management-empty">
-            {importedProblemSets.length === 0
-              ? 'まだありません'
-              : `${importedProblemSets.length}件`}
-          </p>
+          {importedProblemSets.length === 0 ? (
+            <p className="data-management-empty">まだありません</p>
+          ) : (
+            importedProblemSets.map((set) => (
+              <dl className="data-management-list" key={set.id}>
+                <div className="data-management-row">
+                  <dt>名称</dt>
+                  <dd>{set.name}</dd>
+                </div>
+                <div className="data-management-row">
+                  <dt>種別</dt>
+                  <dd>一時追加</dd>
+                </div>
+                <div className="data-management-row">
+                  <dt>状態</dt>
+                  <dd>{set.enabled ? '有効' : '無効'}</dd>
+                </div>
+                <div className="data-management-row">
+                  <dt>件数</dt>
+                  <dd>{set.questionCount}問</dd>
+                </div>
+                <div className="data-management-row">
+                  <dt>保存状態</dt>
+                  <dd>未保存</dd>
+                </div>
+                <div className="data-management-row">
+                  <dt>検索反映</dt>
+                  <dd>反映中</dd>
+                </div>
+              </dl>
+            ))
+          )}
+          {importedProblemSets.length > 0 && (
+            <button
+              type="button"
+              className="data-management-button"
+              onClick={handleClearImported}
+            >
+              一時追加を解除
+            </button>
+          )}
 
           <p className="data-management-heading">直近のCSV検証結果</p>
           {csvValidation.status === 'idle' && (
@@ -454,7 +521,7 @@ function App() {
               </div>
               <div className="data-management-row">
                 <dt>検索反映</dt>
-                <dd>未反映</dd>
+                <dd>反映中</dd>
               </div>
             </dl>
           )}
@@ -475,7 +542,8 @@ function App() {
             </dl>
           )}
           <p className="data-management-note">
-            ※ CSVの検証のみ行います。まだ保存されず、検索対象にも反映されません。
+            ※
+            追加したCSVは保存されません。ページを再読み込みすると一時追加は消えます。
           </p>
 
           <div className="data-management-actions">
