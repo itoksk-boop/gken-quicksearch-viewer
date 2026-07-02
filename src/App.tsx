@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import './App.css'
 import type { AnswerKey, GQuestion } from './types/question'
 import {
@@ -71,6 +71,55 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+const KNOWN_TERMS = [
+  '教師あり学習',
+  '教師なし学習',
+  '強化学習',
+  '正解ラベル',
+  '過学習',
+  '汎化性能',
+  'CNN',
+  'RNN',
+  'LSTM',
+  'Transformer',
+  'Attention',
+  'RAG',
+  'ファインチューニング',
+  'プロンプト',
+  'ハルシネーション',
+  '著作権',
+  '個人情報',
+  '生成AI',
+  '生成モデル',
+  'GAN',
+  'VAE',
+  'ReLU',
+  'シグモイド関数',
+  'ソフトマックス関数',
+  '勾配降下法',
+  '誤差逆伝播法',
+]
+
+const SUGGESTION_LIMIT = 8
+
+function getLastToken(rawQuery: string): string {
+  const match = rawQuery.match(/(\S+)$/)
+  return match ? match[1] : ''
+}
+
+function getSuggestions(token: string, vocabulary: string[]): string[] {
+  const lowerToken = token.toLowerCase()
+  return vocabulary
+    .filter((term) => term.toLowerCase().startsWith(lowerToken))
+    .slice(0, SUGGESTION_LIMIT)
+}
+
+function applySuggestion(rawQuery: string, suggestion: string): string {
+  const match = rawQuery.match(/^(.*\s)?\S*$/)
+  const prefix = match?.[1] ?? ''
+  return prefix + suggestion
+}
+
 function highlightText(text: string, tokens: string[]): ReactNode {
   if (tokens.length === 0) return text
 
@@ -96,6 +145,7 @@ function App() {
   const [query, setQuery] = useState('')
   const [questions, setQuestions] = useState<GQuestion[]>([])
   const [csvStatus, setCsvStatus] = useState('CSV未読み込み')
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setCsvStatus('CSV読み込み中')
@@ -112,9 +162,23 @@ function App() {
       })
   }, [])
 
+  const vocabulary = useMemo(() => {
+    const categories = questions.map((q) => q.category)
+    return Array.from(new Set([...categories, ...KNOWN_TERMS]))
+  }, [questions])
+
   const trimmedQuery = query.trim()
   const isSearchActive = trimmedQuery.length >= 2
   const searchTokens = isSearchActive ? getSearchTokens(trimmedQuery) : []
+
+  const lastToken = getLastToken(query)
+  const suggestions =
+    lastToken.length > 0 ? getSuggestions(lastToken, vocabulary) : []
+
+  const handleSuggestionClick = (suggestion: string) => {
+    setQuery((prev) => applySuggestion(prev, suggestion))
+    searchInputRef.current?.focus()
+  }
 
   const filtered = isSearchActive
     ? searchTokens.length === 0
@@ -133,10 +197,6 @@ function App() {
       ? '該当なし'
       : `検索結果 ${filtered.length}件`
 
-  const suggestionText = isSearchActive
-    ? '候補表示は次フェーズで実装'
-    : '候補はここに表示'
-
   return (
     <div className="app-shell">
       <header className="search-header">
@@ -154,10 +214,23 @@ function App() {
             placeholder="用語・問題文・解説を検索"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            ref={searchInputRef}
           />
-          <div className="search-suggestion" aria-hidden="true">
-            {suggestionText}
-          </div>
+          {suggestions.length > 0 && (
+            <div className="suggestion-chips" role="list">
+              {suggestions.map((term) => (
+                <button
+                  type="button"
+                  className="suggestion-chip"
+                  key={term}
+                  role="listitem"
+                  onClick={() => handleSuggestionClick(term)}
+                >
+                  {term}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <p className="status-line">{statusText}</p>

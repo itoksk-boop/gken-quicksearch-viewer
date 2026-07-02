@@ -56,11 +56,29 @@
   outline-offset: 1px;
 }
 
-.search-suggestion {
-  margin-top: 4px;
+.suggestion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.suggestion-chip {
+  font: inherit;
   font-size: 13px;
-  color: var(--text);
-  opacity: 0.6;
+  padding: 5px 12px;
+  min-height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.suggestion-chip:hover,
+.suggestion-chip:focus-visible {
+  border-color: var(--accent-border);
+  outline: none;
 }
 
 .status-line {
