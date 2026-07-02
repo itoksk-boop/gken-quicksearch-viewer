@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import Papa from 'papaparse'
 import './App.css'
 import type { AnswerKey, GQuestion } from './types/question'
-import { sampleQuestions } from './data/sampleQuestions'
+import { loadQuestionsFromCsv } from './utils/loadQuestionsFromCsv'
 
-const CSV_URL = '/data/G検定_4択問題ファイル1_100問.csv'
+const CSV_SOURCE_FILE = 'G検定_4択問題ファイル1_100問.csv'
+const CSV_URL = `/data/${CSV_SOURCE_FILE}`
 
 const ANSWER_KEYS: AnswerKey[] = ['A', 'B', 'C', 'D']
 
@@ -25,28 +25,16 @@ function matchesQuery(q: GQuestion, needle: string): boolean {
 
 function App() {
   const [query, setQuery] = useState('')
+  const [questions, setQuestions] = useState<GQuestion[]>([])
   const [csvStatus, setCsvStatus] = useState('CSV未読み込み')
 
   useEffect(() => {
     setCsvStatus('CSV読み込み中')
 
-    fetch(CSV_URL)
-      .then((res) => res.text())
-      .then((csvText) => {
-        Papa.parse(csvText, {
-          header: true,
-          skipEmptyLines: true,
-          complete: (result) => {
-            if (result.errors.length > 0) {
-              setCsvStatus(`CSV読み込み失敗：${result.errors[0].message}`)
-              return
-            }
-            setCsvStatus(`CSV読み込み成功：${result.data.length}行`)
-          },
-          error: (err: Error) => {
-            setCsvStatus(`CSV読み込み失敗：${err.message}`)
-          },
-        })
+    loadQuestionsFromCsv(CSV_URL, CSV_SOURCE_FILE)
+      .then((loaded) => {
+        setQuestions(loaded)
+        setCsvStatus(`CSV読み込み成功：${loaded.length}問`)
       })
       .catch((err: Error) => {
         setCsvStatus(`CSV読み込み失敗：${err.message}`)
@@ -57,14 +45,14 @@ function App() {
   const isSearchActive = trimmedQuery.length >= 2
 
   const filtered = isSearchActive
-    ? sampleQuestions.filter((q) => matchesQuery(q, trimmedQuery.toLowerCase()))
-    : sampleQuestions
+    ? questions.filter((q) => matchesQuery(q, trimmedQuery.toLowerCase()))
+    : questions
 
   const topFour = filtered.slice(0, 4)
   const rest = filtered.slice(4)
 
   const statusText = !isSearchActive
-    ? '固定サンプルデータ表示中 / 2文字以上で検索'
+    ? '検索対象データ表示中 / 2文字以上で検索'
     : filtered.length === 0
       ? '該当なし'
       : `検索結果 ${filtered.length}件`
