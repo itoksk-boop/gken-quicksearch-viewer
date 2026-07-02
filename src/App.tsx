@@ -187,6 +187,17 @@ function splitSearchKeywords(value: string): string[] {
   return Array.from(new Set(terms))
 }
 
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function getSelectedImportedProblemSets(
+  importedProblemSets: ProblemSet[],
+  selectedIds: Set<string>,
+): ProblemSet[] {
+  return importedProblemSets.filter((set) => selectedIds.has(set.id))
+}
+
 function hasDetailContent(q: GQuestion): boolean {
   const metadata = q.metadata
   if (!metadata) return false
@@ -411,7 +422,7 @@ function App() {
       })
       setSaveError(null)
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = toErrorMessage(err)
       setCsvValidation({ status: 'error', fileName: file.name, message })
     }
   }
@@ -423,7 +434,7 @@ function App() {
       await saveProblemSet(set, setQuestions)
       setSavedImportedIds((prev) => new Set(prev).add(set.id))
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = toErrorMessage(err)
       setSaveError(message)
     }
   }
@@ -440,15 +451,16 @@ function App() {
         const setQuestions = importedQuestionsBySetId[set.id] ?? []
         await saveProblemSet(updatedSet, setQuestions)
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = toErrorMessage(err)
         setSaveError(message)
       }
     }
   }
 
   const handleDeleteSelected = async () => {
-    const selectedSets = importedProblemSets.filter((set) =>
-      selectedForMergeIds.has(set.id),
+    const selectedSets = getSelectedImportedProblemSets(
+      importedProblemSets,
+      selectedForMergeIds,
     )
     if (selectedSets.length === 0) return
 
@@ -466,7 +478,7 @@ function App() {
         try {
           await deleteProblemSet(set.id)
         } catch (err) {
-          lastErrorMessage = err instanceof Error ? err.message : String(err)
+          lastErrorMessage = toErrorMessage(err)
           continue
         }
       }
@@ -509,8 +521,9 @@ function App() {
   }
 
   const handleMergeSelected = async () => {
-    const selectedSets = importedProblemSets.filter((set) =>
-      selectedForMergeIds.has(set.id),
+    const selectedSets = getSelectedImportedProblemSets(
+      importedProblemSets,
+      selectedForMergeIds,
     )
     if (selectedSets.length < 2) return
 
@@ -545,7 +558,7 @@ function App() {
       setSavedImportedIds((prev) => new Set(prev).add(mergedSet.id))
       setSelectedForMergeIds(new Set())
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = toErrorMessage(err)
       setSaveError(message)
     }
   }
@@ -868,7 +881,7 @@ function App() {
                         分野：{highlightText(q.category, searchTokens)}
                       </span>
                       <span className="card-difficulty">
-                        難易度：{highlightText(q.difficulty, searchTokens)}
+                        捻り度：{highlightText(q.difficulty, searchTokens)}
                       </span>
                     </div>
                     <p className="card-question">
@@ -968,7 +981,7 @@ function App() {
                       分野：{highlightText(q.category, searchTokens)}
                     </span>
                     <span className="result-difficulty">
-                      難易度：{highlightText(q.difficulty, searchTokens)}
+                      捻り度：{highlightText(q.difficulty, searchTokens)}
                     </span>
                     <span className="result-question">
                       {highlightText(q.question, searchTokens)}
