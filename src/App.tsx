@@ -160,6 +160,10 @@ function scoreQuestion(q: GQuestion, tokens: string[]): number {
 const CARD_LONG_THRESHOLD = 350
 const CARD_VERY_LONG_THRESHOLD = 600
 
+function getResultKey(q: GQuestion): string {
+  return `${q.sourceFile}-${q.id}`
+}
+
 function getCardLengthClass(q: GQuestion): string {
   const totalLength =
     q.question.length +
@@ -310,6 +314,9 @@ function App() {
   const [disabledQuestionTypes, setDisabledQuestionTypes] = useState<
     Set<string>
   >(new Set())
+  const [expandedResultId, setExpandedResultId] = useState<string | null>(
+    null,
+  )
   const searchInputRef = useRef<HTMLInputElement>(null)
   const headerRef = useRef<HTMLElement>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
@@ -325,6 +332,10 @@ function App() {
     observer.observe(headerEl)
     return () => observer.disconnect()
   }, [])
+
+  useEffect(() => {
+    setExpandedResultId(null)
+  }, [query, questions, importedProblemSets, disabledQuestionTypes])
 
   useEffect(() => {
     setCsvStatus('標準データ読み込み中')
@@ -665,6 +676,107 @@ function App() {
   const showCsvStatus =
     csvStatus.includes('読み込み中') || csvStatus.includes('失敗')
 
+  const handleToggleExpandedRow = (resultKey: string) => {
+    setExpandedResultId((prev) => (prev === resultKey ? null : resultKey))
+  }
+
+  const renderQuestionCard = (q: GQuestion, isExpandedRow = false) => {
+    const cardKey = getResultKey(q)
+    const isDetailOpen = openDetailKeys.has(cardKey)
+    const wrongReasons = q.metadata?.wrongReasons
+
+    return (
+      <article
+        className={`question-card ${getCardLengthClass(q)}`.trim()}
+        key={cardKey}
+      >
+        {isExpandedRow && (
+          <button
+            type="button"
+            className="card-collapse-hint"
+            onClick={() => setExpandedResultId(null)}
+          >
+            展開中（クリックで閉じる）
+          </button>
+        )}
+        <div className="card-meta">
+          <span className="card-category">
+            分野：{highlightText(q.category, searchTokens)}
+          </span>
+          <span className="card-difficulty">
+            捻り度：{highlightText(q.difficulty, searchTokens)}
+          </span>
+        </div>
+        <p className="card-question">
+          {highlightText(q.question, searchTokens)}
+        </p>
+        <ul className="card-choices">
+          {ANSWER_KEYS.map((key) => (
+            <li
+              key={key}
+              className={
+                key === q.answer ? 'card-choice is-answer' : 'card-choice'
+              }
+            >
+              {key}. {highlightText(q.choices[key], searchTokens)}
+            </li>
+          ))}
+        </ul>
+        <p className="card-answer">正解：{q.answer}</p>
+        <p className="card-explanation">
+          解説：{highlightText(q.explanation, searchTokens)}
+        </p>
+        <button
+          type="button"
+          className="card-detail-toggle"
+          onClick={() => handleToggleDetail(cardKey)}
+        >
+          {isDetailOpen ? '詳細を閉じる' : '詳細'}
+        </button>
+        {isDetailOpen && (
+          <div className="card-detail">
+            {hasDetailContent(q) ? (
+              <>
+                {q.metadata?.trapPoint && (
+                  <p className="card-detail-row">
+                    <span className="card-detail-label">
+                      ひっかけポイント：
+                    </span>
+                    {highlightText(q.metadata.trapPoint, searchTokens)}
+                  </p>
+                )}
+                {wrongReasons &&
+                  ANSWER_KEYS.some((key) => wrongReasons[key]) && (
+                    <div className="card-detail-row">
+                      <span className="card-detail-label">誤答理由：</span>
+                      <ul className="card-detail-wrong-list">
+                        {ANSWER_KEYS.filter((key) => wrongReasons[key]).map(
+                          (key) => (
+                            <li key={key}>
+                              {key}：
+                              {highlightText(wrongReasons[key] ?? '', searchTokens)}
+                            </li>
+                          ),
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                {q.metadata?.storyHint && (
+                  <p className="card-detail-row">
+                    <span className="card-detail-label">記憶ヒント：</span>
+                    {highlightText(q.metadata.storyHint, searchTokens)}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="card-detail-empty">追加詳細なし</p>
+            )}
+          </div>
+        )}
+      </article>
+    )
+  }
+
   return (
     <div
       className="app-shell"
@@ -759,132 +871,52 @@ function App() {
         ) : (
           <>
             <section className="top-cards" aria-label="上位6件">
-              {topResults.map((q) => {
-                const cardKey = `${q.sourceFile}-${q.id}`
-                const isDetailOpen = openDetailKeys.has(cardKey)
-                const wrongReasons = q.metadata?.wrongReasons
-
-                return (
-                  <article
-                    className={`question-card ${getCardLengthClass(q)}`.trim()}
-                    key={cardKey}
-                  >
-                    <div className="card-meta">
-                      <span className="card-category">
-                        分野：{highlightText(q.category, searchTokens)}
-                      </span>
-                      <span className="card-difficulty">
-                        捻り度：{highlightText(q.difficulty, searchTokens)}
-                      </span>
-                    </div>
-                    <p className="card-question">
-                      {highlightText(q.question, searchTokens)}
-                    </p>
-                    <ul className="card-choices">
-                      {ANSWER_KEYS.map((key) => (
-                        <li
-                          key={key}
-                          className={
-                            key === q.answer
-                              ? 'card-choice is-answer'
-                              : 'card-choice'
-                          }
-                        >
-                          {key}. {highlightText(q.choices[key], searchTokens)}
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="card-answer">正解：{q.answer}</p>
-                    <p className="card-explanation">
-                      解説：{highlightText(q.explanation, searchTokens)}
-                    </p>
-                    <button
-                      type="button"
-                      className="card-detail-toggle"
-                      onClick={() => handleToggleDetail(cardKey)}
-                    >
-                      {isDetailOpen ? '詳細を閉じる' : '詳細'}
-                    </button>
-                    {isDetailOpen && (
-                      <div className="card-detail">
-                        {hasDetailContent(q) ? (
-                          <>
-                            {q.metadata?.trapPoint && (
-                              <p className="card-detail-row">
-                                <span className="card-detail-label">
-                                  ひっかけポイント：
-                                </span>
-                                {highlightText(
-                                  q.metadata.trapPoint,
-                                  searchTokens,
-                                )}
-                              </p>
-                            )}
-                            {wrongReasons &&
-                              ANSWER_KEYS.some((key) => wrongReasons[key]) && (
-                                <div className="card-detail-row">
-                                  <span className="card-detail-label">
-                                    誤答理由：
-                                  </span>
-                                  <ul className="card-detail-wrong-list">
-                                    {ANSWER_KEYS.filter(
-                                      (key) => wrongReasons[key],
-                                    ).map((key) => (
-                                      <li key={key}>
-                                        {key}：
-                                        {highlightText(
-                                          wrongReasons[key] ?? '',
-                                          searchTokens,
-                                        )}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                            {q.metadata?.storyHint && (
-                              <p className="card-detail-row">
-                                <span className="card-detail-label">
-                                  記憶ヒント：
-                                </span>
-                                {highlightText(
-                                  q.metadata.storyHint,
-                                  searchTokens,
-                                )}
-                              </p>
-                            )}
-                          </>
-                        ) : (
-                          <p className="card-detail-empty">追加詳細なし</p>
-                        )}
-                      </div>
-                    )}
-                  </article>
-                )
-              })}
+              {topResults.map((q) => renderQuestionCard(q))}
             </section>
 
             <section className="result-list" aria-label="7件目以降の結果">
               <ul>
-                {rest.map((q) => (
-                  <li
-                    className="result-list-item"
-                    key={`${q.sourceFile}-${q.id}`}
-                  >
-                    <span className="result-category">
-                      分野：{highlightText(q.category, searchTokens)}
-                    </span>
-                    <span className="result-difficulty">
-                      捻り度：{highlightText(q.difficulty, searchTokens)}
-                    </span>
-                    <span className="result-question">
-                      {highlightText(q.question, searchTokens)}
-                    </span>
-                    <span className="result-answer">
-                      正解{q.answer}：
-                      {highlightText(q.choices[q.answer], searchTokens)}
-                    </span>
-                  </li>
-                ))}
+                {rest.map((q) => {
+                  const resultKey = getResultKey(q)
+
+                  if (resultKey === expandedResultId) {
+                    return (
+                      <li className="result-list-item--expanded" key={resultKey}>
+                        {renderQuestionCard(q, true)}
+                      </li>
+                    )
+                  }
+
+                  return (
+                    <li
+                      className="result-list-item"
+                      key={resultKey}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleToggleExpandedRow(resultKey)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          handleToggleExpandedRow(resultKey)
+                        }
+                      }}
+                    >
+                      <span className="result-category">
+                        分野：{highlightText(q.category, searchTokens)}
+                      </span>
+                      <span className="result-difficulty">
+                        捻り度：{highlightText(q.difficulty, searchTokens)}
+                      </span>
+                      <span className="result-question">
+                        {highlightText(q.question, searchTokens)}
+                      </span>
+                      <span className="result-answer">
+                        正解{q.answer}：
+                        {highlightText(q.choices[q.answer], searchTokens)}
+                      </span>
+                    </li>
+                  )
+                })}
               </ul>
             </section>
           </>

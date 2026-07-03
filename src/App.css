@@ -401,6 +401,28 @@
   font-size: 11px;
   color: var(--text-h);
   flex-wrap: wrap;
+  cursor: pointer;
+}
+
+.result-list-item:hover,
+.result-list-item:focus-visible {
+  border-color: var(--accent-border);
+  outline: none;
+}
+
+.result-list-item--expanded {
+  list-style: none;
+}
+
+.card-collapse-hint {
+  align-self: flex-start;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+  cursor: pointer;
 }
 
 .result-category,
