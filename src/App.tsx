@@ -20,6 +20,7 @@ import {
 } from './utils/problemSetStorage'
 import DataManagementPanel, {
   type CsvValidationResult,
+  type QuestionTypeSummary,
 } from './components/DataManagementPanel'
 
 const CSV_FILE_NAMES = [
@@ -184,6 +185,13 @@ function getSelectedImportedProblemSets(
   return importedProblemSets.filter((set) => selectedIds.has(set.id))
 }
 
+const UNCLASSIFIED_QUESTION_TYPE = '未分類'
+
+function getQuestionTypeLabel(q: GQuestion): string {
+  const type = q.metadata?.questionType?.trim()
+  return type ? type : UNCLASSIFIED_QUESTION_TYPE
+}
+
 function hasDetailContent(q: GQuestion): boolean {
   const metadata = q.metadata
   if (!metadata) return false
@@ -291,6 +299,9 @@ function App() {
   const [selectedForMergeIds, setSelectedForMergeIds] = useState<Set<string>>(
     new Set(),
   )
+  const [disabledQuestionTypes, setDisabledQuestionTypes] = useState<
+    Set<string>
+  >(new Set())
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -337,15 +348,39 @@ function App() {
 
   const allSearchQuestions = [...questions, ...enabledImportedQuestions]
 
+  const filteredSearchQuestions = allSearchQuestions.filter(
+    (q) => !disabledQuestionTypes.has(getQuestionTypeLabel(q)),
+  )
+
+  const questionTypeCounts = new Map<string, number>()
+  for (const q of allSearchQuestions) {
+    const label = getQuestionTypeLabel(q)
+    questionTypeCounts.set(label, (questionTypeCounts.get(label) ?? 0) + 1)
+  }
+  const questionTypeSummaries: QuestionTypeSummary[] = Array.from(
+    questionTypeCounts.entries(),
+  )
+    .map(([label, count]) => ({
+      label,
+      count,
+      enabled: !disabledQuestionTypes.has(label),
+    }))
+    .sort((a, b) => b.count - a.count)
+
   const vocabulary = useMemo(() => {
-    const categories = allSearchQuestions.map((q) => q.category)
-    const keywordTerms = allSearchQuestions.flatMap((q) =>
+    const categories = filteredSearchQuestions.map((q) => q.category)
+    const keywordTerms = filteredSearchQuestions.flatMap((q) =>
       q.metadata?.searchKeywords
         ? splitSearchKeywords(q.metadata.searchKeywords)
         : [],
     )
     return Array.from(new Set([...categories, ...keywordTerms, ...KNOWN_TERMS]))
-  }, [questions, importedProblemSets, importedQuestionsBySetId])
+  }, [
+    questions,
+    importedProblemSets,
+    importedQuestionsBySetId,
+    disabledQuestionTypes,
+  ])
 
   const builtInProblemSet: ProblemSet = {
     id: 'built-in-gkentei-rebuild',
@@ -356,7 +391,7 @@ function App() {
     createdAt: 'built-in',
   }
 
-  const searchPoolSummary = `検索対象：標準${questions.length}問＋追加${enabledImportedQuestions.length}問＝${allSearchQuestions.length}問`
+  const searchPoolSummary = `検索対象：標準${questions.length}問＋追加${enabledImportedQuestions.length}問＝${allSearchQuestions.length}問／有効問題タイプ対象${filteredSearchQuestions.length}問`
 
   const latestUnsavedSet = importedProblemSets.find(
     (set) => !savedImportedIds.has(set.id),
@@ -539,6 +574,28 @@ function App() {
     }
   }
 
+  const handleToggleQuestionType = (label: string) => {
+    setDisabledQuestionTypes((prev) => {
+      const next = new Set(prev)
+      if (next.has(label)) {
+        next.delete(label)
+      } else {
+        next.add(label)
+      }
+      return next
+    })
+  }
+
+  const handleEnableAllQuestionTypes = () => {
+    setDisabledQuestionTypes(new Set())
+  }
+
+  const handleDisableAllQuestionTypes = () => {
+    setDisabledQuestionTypes(
+      new Set(questionTypeSummaries.map((type) => type.label)),
+    )
+  }
+
   const trimmedQuery = query.trim()
   const isSearchActive = trimmedQuery.length >= 2
   const searchTokens = isSearchActive ? getSearchTokens(trimmedQuery) : []
@@ -567,20 +624,20 @@ function App() {
   const filtered = isSearchActive
     ? searchTokens.length === 0
       ? []
-      : allSearchQuestions
+      : filteredSearchQuestions
           .filter((q) =>
             searchTokens.every((token) => matchesQuery(q, token)),
           )
           .map((q, index) => ({ q, index, score: scoreQuestion(q, searchTokens) }))
           .sort((a, b) => b.score - a.score || a.index - b.index)
           .map((entry) => entry.q)
-    : allSearchQuestions
+    : filteredSearchQuestions
 
   const topResults = filtered.slice(0, TOP_RESULT_COUNT)
   const rest = filtered.slice(TOP_RESULT_COUNT)
 
   const headerResultCount = (
-    isSearchActive ? filtered.length : allSearchQuestions.length
+    isSearchActive ? filtered.length : filteredSearchQuestions.length
   ).toLocaleString('ja-JP')
 
   const showCsvStatus =
@@ -663,11 +720,16 @@ function App() {
           importedProblemSets={importedProblemSets}
           onToggleSelected={handleToggleSelectForMerge}
           onToggleEnabled={handleToggleEnabled}
+          questionTypeSummaries={questionTypeSummaries}
+          onToggleQuestionType={handleToggleQuestionType}
+          onEnableAllQuestionTypes={handleEnableAllQuestionTypes}
+          onDisableAllQuestionTypes={handleDisableAllQuestionTypes}
         />
       )}
 
       <main className="main-content">
-        {isSearchActive && filtered.length === 0 ? (
+        {filtered.length === 0 &&
+        (isSearchActive || allSearchQuestions.length > 0) ? (
           <p className="no-result">該当なし</p>
         ) : (
           <>

@@ -6,6 +6,12 @@ export type CsvValidationResult =
   | { status: 'success'; fileName: string; count: number }
   | { status: 'error'; fileName: string; message: string }
 
+export type QuestionTypeSummary = {
+  label: string
+  count: number
+  enabled: boolean
+}
+
 function formatRegisteredAt(set: ProblemSet): string {
   if (set.sourceType === 'built-in') return '初期収録'
 
@@ -40,6 +46,10 @@ type DataManagementPanelProps = {
   importedProblemSets: ProblemSet[]
   onToggleSelected: (setId: string) => void
   onToggleEnabled: (set: ProblemSet) => void
+  questionTypeSummaries: QuestionTypeSummary[]
+  onToggleQuestionType: (label: string) => void
+  onEnableAllQuestionTypes: () => void
+  onDisableAllQuestionTypes: () => void
 }
 
 function DataManagementPanel({
@@ -59,6 +69,10 @@ function DataManagementPanel({
   importedProblemSets,
   onToggleSelected,
   onToggleEnabled,
+  questionTypeSummaries,
+  onToggleQuestionType,
+  onEnableAllQuestionTypes,
+  onDisableAllQuestionTypes,
 }: DataManagementPanelProps) {
   const allDisplayedSets: ProblemSet[] = [
     builtInProblemSet,
@@ -238,6 +252,70 @@ function DataManagementPanel({
         {importedProblemSets.length === 0 && (
           <p className="data-management-empty">追加データはまだありません</p>
         )}
+
+        <div className="question-type-section">
+          <div className="question-type-header">
+            <span className="question-type-heading">問題タイプ</span>
+            <div className="question-type-bulk-actions">
+              <button
+                type="button"
+                className="data-management-button"
+                onClick={onEnableAllQuestionTypes}
+              >
+                すべて有効
+              </button>
+              <button
+                type="button"
+                className="data-management-button"
+                onClick={onDisableAllQuestionTypes}
+              >
+                すべて無効
+              </button>
+            </div>
+          </div>
+          {questionTypeSummaries.length === 0 ? (
+            <p className="data-management-empty">問題タイプ情報がありません</p>
+          ) : (
+            <ul className="question-type-list">
+              {questionTypeSummaries.map((type) => (
+                <li className="question-type-row" key={type.label}>
+                  <span className="question-type-label">{type.label}</span>
+                  <span className="question-type-count">
+                    {type.count.toLocaleString('ja-JP')}問
+                  </span>
+                  <div className="status-toggle" role="group">
+                    <button
+                      type="button"
+                      className={
+                        type.enabled
+                          ? 'status-toggle-button is-active'
+                          : 'status-toggle-button'
+                      }
+                      onClick={() =>
+                        !type.enabled && onToggleQuestionType(type.label)
+                      }
+                    >
+                      有効
+                    </button>
+                    <button
+                      type="button"
+                      className={
+                        !type.enabled
+                          ? 'status-toggle-button is-active'
+                          : 'status-toggle-button'
+                      }
+                      onClick={() =>
+                        type.enabled && onToggleQuestionType(type.label)
+                      }
+                    >
+                      無効
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </section>
   )
