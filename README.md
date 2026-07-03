@@ -1,32 +1,58 @@
-# React + TypeScript + Vite
+# G検定クイック検索ビューアー
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+G検定4択問題をすばやく検索・確認するための、PWA対応ビューアーです。
 
-Currently, two official plugins are available:
+## 公開URL
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+https://gken-quicksearch-viewer.itoksk-gken.workers.dev
 
-## React Compiler
+公開直後は、DNSやTLS証明書の反映に数分かかる場合があります。
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 主な機能
 
-## Expanding the Oxlint configuration
+- 標準データ4,150問の検索
+- 2文字以上で即時検索
+- 複数キーワードのAND検索
+- 関連度順の検索結果表示
+- 問題タイプ別フィルタ
+- CSV追加インポート
+- 追加データのIndexedDB保存
+- PWA最小対応
+- Chrome / iPadホーム画面利用を想定
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## データに関する注意
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+このアプリは、標準データを `public/data` 配下のCSVとして配信します。
+
+そのため、公開URLを知っている人は、アプリ画面だけでなくCSVファイルも取得できます。
+
+追加CSVはブラウザのIndexedDBに保存されます。
+追加CSVは端末・ブラウザごとの保存であり、iPadとChrome、または別端末間では自動共有されません。
+ブラウザのサイトデータ削除、キャッシュ削除、シークレットモード利用などにより、追加CSVが消える可能性があります。
+
+## ローカル開発
+
+```bash
+npm install
+npm run dev
+npm run build
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Cloudflare Workers Static Assets
+
+- Build command: `npm run build`
+- Deploy command: `npx wrangler deploy`
+- `wrangler.jsonc` の `assets.directory` は `./dist`
+
+## 現在の構成
+
+- React
+- Vite
+- TypeScript
+- PapaParse
+- IndexedDB
+- Cloudflare Workers Static Assets
+
+## ライセンス
+
+現時点では未設定です。
