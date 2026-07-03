@@ -135,128 +135,38 @@ function DataManagementPanel({
           </p>
         )}
 
-        <div className="data-management-selection-bar">
-          <span className="data-management-selection-label">
-            選択したデータ
-            <span className="data-management-selection-count-value">
-              {selectedForMergeIds.size}
+        <div className="data-management-toolbar-row">
+          <div className="data-management-selection-bar">
+            <span className="data-management-selection-label">
+              選択したデータ
+              <span className="data-management-selection-count-value">
+                {selectedForMergeIds.size}
+              </span>
+              件選択中
             </span>
-            件選択中
-          </span>
-          <div className="data-management-selection-actions">
-            <button
-              type="button"
-              className="data-management-button"
-              disabled={selectedForMergeIds.size < 2}
-              onClick={onMergeSelected}
-            >
-              統合
-            </button>
-            <button
-              type="button"
-              className="data-management-button data-management-button-danger"
-              disabled={selectedForMergeIds.size < 1}
-              onClick={onDeleteSelected}
-            >
-              削除
-            </button>
+            <div className="data-management-selection-actions">
+              <button
+                type="button"
+                className="data-management-button"
+                disabled={selectedForMergeIds.size < 2}
+                onClick={onMergeSelected}
+              >
+                統合
+              </button>
+              <button
+                type="button"
+                className="data-management-button data-management-button-danger"
+                disabled={selectedForMergeIds.size < 1}
+                onClick={onDeleteSelected}
+              >
+                削除
+              </button>
+            </div>
           </div>
-        </div>
 
-        {saveError && (
-          <p className="data-management-error">保存エラー：{saveError}</p>
-        )}
-        {deleteError && (
-          <p className="data-management-error">削除エラー：{deleteError}</p>
-        )}
-
-        <div className="data-table-wrapper">
-          <table className="data-table">
-            <tbody>
-              <tr>
-                <th>名称</th>
-                {allDisplayedSets.map((set) => (
-                  <td key={set.id}>
-                    {set.sourceType === 'imported' && (
-                      <input
-                        type="checkbox"
-                        className="data-table-checkbox"
-                        checked={selectedForMergeIds.has(set.id)}
-                        onChange={() => onToggleSelected(set.id)}
-                        aria-label={`${set.name}を選択`}
-                      />
-                    )}
-                    {set.name}
-                  </td>
-                ))}
-              </tr>
-              <tr>
-                <th>登録日時</th>
-                {allDisplayedSets.map((set) => (
-                  <td key={set.id}>{formatRegisteredAt(set)}</td>
-                ))}
-              </tr>
-              <tr>
-                <th>件数</th>
-                {allDisplayedSets.map((set) => (
-                  <td key={set.id}>{set.questionCount}問</td>
-                ))}
-              </tr>
-              <tr>
-                <th>読み込み元</th>
-                {allDisplayedSets.map((set) => (
-                  <td key={set.id}>
-                    {set.sourceType === 'built-in' ? '内蔵CSV' : 'CSV追加'}
-                  </td>
-                ))}
-              </tr>
-              <tr>
-                <th>状態</th>
-                {allDisplayedSets.map((set) => (
-                  <td key={set.id}>
-                    {set.sourceType === 'built-in' ? (
-                      <span className="status-badge">有効</span>
-                    ) : (
-                      <div className="status-toggle" role="group">
-                        <button
-                          type="button"
-                          className={
-                            set.enabled
-                              ? 'status-toggle-button is-active'
-                              : 'status-toggle-button'
-                          }
-                          onClick={() => !set.enabled && onToggleEnabled(set)}
-                        >
-                          有効
-                        </button>
-                        <button
-                          type="button"
-                          className={
-                            !set.enabled
-                              ? 'status-toggle-button is-active'
-                              : 'status-toggle-button'
-                          }
-                          onClick={() => set.enabled && onToggleEnabled(set)}
-                        >
-                          無効
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {importedProblemSets.length === 0 && (
-          <p className="data-management-empty">追加データはまだありません</p>
-        )}
-
-        <div className="question-type-section">
-          <div className="question-type-header">
-            <span className="question-type-heading">問題タイプ</span>
-            <div className="question-type-bulk-actions">
+          <div className="data-management-selection-bar">
+            <span className="data-management-selection-label">問題タイプ</span>
+            <div className="data-management-selection-actions">
               <button
                 type="button"
                 className="data-management-button"
@@ -273,48 +183,151 @@ function DataManagementPanel({
               </button>
             </div>
           </div>
-          {questionTypeSummaries.length === 0 ? (
-            <p className="data-management-empty">問題タイプ情報がありません</p>
-          ) : (
-            <ul className="question-type-list">
-              {questionTypeSummaries.map((type) => (
-                <li className="question-type-row" key={type.label}>
-                  <span className="question-type-label">{type.label}</span>
-                  <span className="question-type-count">
-                    {type.count.toLocaleString('ja-JP')}問
-                  </span>
-                  <div className="status-toggle" role="group">
-                    <button
-                      type="button"
-                      className={
-                        type.enabled
-                          ? 'status-toggle-button is-active'
-                          : 'status-toggle-button'
-                      }
-                      onClick={() =>
-                        !type.enabled && onToggleQuestionType(type.label)
-                      }
-                    >
-                      有効
-                    </button>
-                    <button
-                      type="button"
-                      className={
-                        !type.enabled
-                          ? 'status-toggle-button is-active'
-                          : 'status-toggle-button'
-                      }
-                      onClick={() =>
-                        type.enabled && onToggleQuestionType(type.label)
-                      }
-                    >
-                      無効
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+        </div>
+
+        {saveError && (
+          <p className="data-management-error">保存エラー：{saveError}</p>
+        )}
+        {deleteError && (
+          <p className="data-management-error">削除エラー：{deleteError}</p>
+        )}
+
+        <div className="data-management-columns">
+          <div className="data-management-column data-management-column--sets">
+            <div className="data-table-wrapper">
+              <table className="data-table">
+                <tbody>
+                  <tr>
+                    <th>名称</th>
+                    {allDisplayedSets.map((set) => (
+                      <td key={set.id}>
+                        {set.sourceType === 'imported' && (
+                          <input
+                            type="checkbox"
+                            className="data-table-checkbox"
+                            checked={selectedForMergeIds.has(set.id)}
+                            onChange={() => onToggleSelected(set.id)}
+                            aria-label={`${set.name}を選択`}
+                          />
+                        )}
+                        {set.name}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th>登録日時</th>
+                    {allDisplayedSets.map((set) => (
+                      <td key={set.id}>{formatRegisteredAt(set)}</td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th>件数</th>
+                    {allDisplayedSets.map((set) => (
+                      <td key={set.id}>{set.questionCount}問</td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th>読み込み元</th>
+                    {allDisplayedSets.map((set) => (
+                      <td key={set.id}>
+                        {set.sourceType === 'built-in' ? '内蔵CSV' : 'CSV追加'}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th>状態</th>
+                    {allDisplayedSets.map((set) => (
+                      <td key={set.id}>
+                        {set.sourceType === 'built-in' ? (
+                          <span className="status-badge">有効</span>
+                        ) : (
+                          <div className="status-toggle" role="group">
+                            <button
+                              type="button"
+                              className={
+                                set.enabled
+                                  ? 'status-toggle-button is-active'
+                                  : 'status-toggle-button'
+                              }
+                              onClick={() =>
+                                !set.enabled && onToggleEnabled(set)
+                              }
+                            >
+                              有効
+                            </button>
+                            <button
+                              type="button"
+                              className={
+                                !set.enabled
+                                  ? 'status-toggle-button is-active'
+                                  : 'status-toggle-button'
+                              }
+                              onClick={() =>
+                                set.enabled && onToggleEnabled(set)
+                              }
+                            >
+                              無効
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="data-management-column data-management-column--types">
+            <div className="question-type-section">
+              {questionTypeSummaries.length === 0 ? (
+                <p className="data-management-empty">
+                  問題タイプ情報がありません
+                </p>
+              ) : (
+                <ul className="question-type-list">
+                  {questionTypeSummaries.map((type) => (
+                    <li className="question-type-row" key={type.label}>
+                      <span className="question-type-label">
+                        {type.label}
+                      </span>
+                      <span className="question-type-count">
+                        {type.count.toLocaleString('ja-JP')}問
+                      </span>
+                      <div className="status-toggle" role="group">
+                        <button
+                          type="button"
+                          className={
+                            type.enabled
+                              ? 'status-toggle-button is-active'
+                              : 'status-toggle-button'
+                          }
+                          onClick={() =>
+                            !type.enabled && onToggleQuestionType(type.label)
+                          }
+                        >
+                          有効
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            !type.enabled
+                              ? 'status-toggle-button is-active'
+                              : 'status-toggle-button'
+                          }
+                          onClick={() =>
+                            type.enabled && onToggleQuestionType(type.label)
+                          }
+                        >
+                          無効
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </section>
