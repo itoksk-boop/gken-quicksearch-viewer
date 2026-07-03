@@ -70,6 +70,13 @@ const CSV_FILE_NAMES = [
   'G検定_最強捻り3000問_Rebuild_Set44_50問.csv',
   'G検定_最強捻り3000問_Rebuild_Set45_50問.csv',
   'G検定_FinalBoost_Set01_200問_穴埋め_作り直し.csv',
+  'G検定_FinalBoost_Set02_200問_2箇所穴埋め.csv',
+  'G検定_FinalBoost_Set03_200問_2箇所穴埋め.csv',
+  'G検定_FinalBoost_Set04_200問_2箇所穴埋め.csv',
+  'G検定_FinalBoost_Set05_200問_2箇所穴埋め.csv',
+  'G検定_FinalBoost_Set06_200問_2箇所穴埋め_本番寄せ.csv',
+  'G検定_FinalBoost_Set07_200問_2箇所穴埋め_超本番予想.csv',
+  'G検定_FinalBoost_Set08_200問_2箇所穴埋め_明日出る想定.csv',
 ]
 
 const CSV_FILES: CsvFileConfig[] = CSV_FILE_NAMES.map((sourceFile) => ({
