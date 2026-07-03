@@ -426,7 +426,11 @@
 }
 
 .data-management-panel {
-  margin: 12px 20px 0;
+  position: fixed;
+  top: calc(var(--search-header-height, 64px) + 12px);
+  left: 20px;
+  right: 20px;
+  z-index: 9;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 14px;
@@ -435,6 +439,7 @@
   background: var(--bg);
   max-height: 60vh;
   overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
 .data-management-panel-header {
@@ -558,7 +563,7 @@
   display: flex;
   gap: 16px;
   align-items: flex-start;
-  justify-content: flex-start;
+  justify-content: space-between;
 }
 
 .data-management-column {

@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type CSSProperties,
   type ReactNode,
 } from 'react'
 import './App.css'
@@ -310,6 +311,20 @@ function App() {
     Set<string>
   >(new Set())
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const headerRef = useRef<HTMLElement>(null)
+  const [headerHeight, setHeaderHeight] = useState(0)
+
+  useEffect(() => {
+    const headerEl = headerRef.current
+    if (!headerEl) return
+
+    const updateHeight = () => setHeaderHeight(headerEl.offsetHeight)
+    updateHeight()
+
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(headerEl)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     setCsvStatus('標準データ読み込み中')
@@ -651,8 +666,11 @@ function App() {
     csvStatus.includes('読み込み中') || csvStatus.includes('失敗')
 
   return (
-    <div className="app-shell">
-      <header className="search-header">
+    <div
+      className="app-shell"
+      style={{ '--search-header-height': `${headerHeight}px` } as CSSProperties}
+    >
+      <header className="search-header" ref={headerRef}>
         <div className="header-row">
           <div className="header-info-block">
             <h1 className="app-title">G検定クイック検索ビューアー</h1>
