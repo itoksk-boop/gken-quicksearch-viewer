@@ -1,0 +1,24 @@
+{
+  "name": "G検定クイック検索ビューアー",
+  "short_name": "G検定検索",
+  "description": "G検定4択問題をすばやく検索・確認するためのビューアー",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#062465",
+  "theme_color": "#062465",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
